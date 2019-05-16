@@ -1,0 +1,70 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE tiles-definitions PUBLIC "-//Apache Software Foundation//DTD Tiles Configuration 3.0//EN" "http://tiles.apache.org/dtds/tiles-config_3_0.dtd">
+<tiles-definitions>
+	<definition name="base_resource" template="/WEB-INF/jsp/base/include/base_resource.jsp" />
+
+	<definition name="definition_base">
+		<put-attribute name="title" value="매일유업 차량온도 관리 시스템" />
+		<put-attribute name="resource" value="base_resource" />
+	</definition>
+
+	<definition name="definition_default" extends="definition_base">
+		<put-attribute name="header" value="/WEB-INF/jsp/base/layout/cvo/layout_default_header.jsp" />
+		<put-attribute name="lnb" value="/WEB-INF/jsp/base/layout/cvo/layout_default_lnb.jsp" />
+		<put-attribute name="footer" value="/WEB-INF/jsp/base/layout/cvo/layout_default_footer.jsp" />
+	</definition>
+
+	<!-- No Frame Layout -->
+	<definition name="noframe:/*/*/*" extends="definition_base" template="/WEB-INF/jsp/base/layout/cmn/layout_no_frame.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}/{3}.jsp" />
+	</definition>
+
+	<!-- No Layout -->
+	<definition name="nolayout:/*/*/*" template="/WEB-INF/jsp/base/layout/cmn/layout_no_layout.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}/{3}.jsp" />
+	</definition>
+
+
+	<!-- No Frame Layout -->
+	<definition name="noframe:/*/*" extends="definition_base" template="/WEB-INF/jsp/base/layout/cmn/layout_no_frame.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}.jsp" />
+	</definition>
+
+	<!-- No Layout -->
+	<definition name="nolayout:/*/*" template="/WEB-INF/jsp/base/layout/cmn/layout_no_layout.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}.jsp" />
+	</definition>
+
+
+	<!-- 모바일 layout -->
+	<definition name="m_resource" template="/WEB-INF/jsp/base/include/m_resource.jsp" />
+
+	<definition name="m_base">
+		<put-attribute name="title" value="매일유업 차량온도 관리 시스템 모바일" />
+		<put-attribute name="resource" value="m_resource" />
+	</definition>
+
+	<definition name="m_default" extends="m_base">
+		<put-attribute name="header" value="/WEB-INF/jsp/base/layout/cvo/m_default_header.jsp" />
+		<put-attribute name="footer" value="/WEB-INF/jsp/base/layout/cvo/m_default_footer.jsp" />
+	</definition>
+
+	<definition name="mobile:/*/*" extends="m_default" template="/WEB-INF/jsp/base/layout/cvo/m_default.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}.jsp" />
+	</definition>
+
+	<definition name="mobile:/*/*/*" extends="m_default" template="/WEB-INF/jsp/base/layout/cvo/m_default.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}/{3}.jsp" />
+	</definition>
+
+
+	<!-- 일반 -->
+	<definition name="*/*" extends="definition_default" template="/WEB-INF/jsp/base/layout/cvo/layout_default.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}.jsp" />
+	</definition>
+
+	<definition name="*/*/*" extends="definition_default" template="/WEB-INF/jsp/base/layout/cvo/layout_default.jsp">
+		<put-attribute name="content" value="/WEB-INF/jsp/{1}/{2}/{3}.jsp" />
+	</definition>
+
+</tiles-definitions>

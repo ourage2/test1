@@ -1,0 +1,153 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<web-app xmlns="http://java.sun.com/xml/ns/javaee" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://java.sun.com/xml/ns/javaee http://java.sun.com/xml/ns/javaee/web-app_3_0.xsd" version="3.0">
+	<display-name>cvo</display-name>
+	<context-param>
+		<param-name>webAppRootKey</param-name>
+		<param-value>cvo.root</param-value>
+	</context-param>
+	<context-param>
+		<param-name>logbackConfigLocation</param-name>
+		<param-value>classpath:config/log/logback.xml</param-value>
+	</context-param>
+	<context-param>
+		<param-name>contextConfigLocation</param-name>
+		<param-value>classpath:config/spring/context-*.xml</param-value>
+	</context-param>
+
+	<filter>
+		<filter-name>encodingFilter</filter-name>
+		<filter-class>org.springframework.web.filter.CharacterEncodingFilter</filter-class>
+		<init-param>
+			<param-name>encoding</param-name>
+			<param-value>UTF-8</param-value>
+		</init-param>
+		<init-param>
+			<param-name>forceEncoding</param-name>
+			<param-value>true</param-value>
+		</init-param>
+	</filter>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.do</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.m</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.json</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.xml</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.xls</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.pop</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.ifm</url-pattern>
+	</filter-mapping>
+	<filter-mapping>
+		<filter-name>encodingFilter</filter-name>
+		<url-pattern>*.jss</url-pattern>
+	</filter-mapping>
+	<filter>
+		<filter-name>xss</filter-name>
+		<filter-class>com.cvo.web.common.spring.XssFilter</filter-class>
+	</filter>
+	<filter-mapping>
+		<filter-name>xss</filter-name>
+		<url-pattern>*.do</url-pattern>
+	</filter-mapping>
+<!-- 	<filter-mapping> -->
+<!-- 		<filter-name>xss</filter-name> -->
+<!-- 		<url-pattern>*.json</url-pattern> -->
+<!-- 	</filter-mapping> -->
+<!-- 	<filter-mapping> -->
+<!-- 		<filter-name>xss</filter-name> -->
+<!-- 		<url-pattern>*.xml</url-pattern> -->
+<!-- 	</filter-mapping> -->
+
+	<listener>
+		<listener-class>ch.qos.logback.ext.spring.web.LogbackConfigListener</listener-class>
+	</listener>
+	<listener>
+		<listener-class>org.springframework.web.context.ContextLoaderListener</listener-class>
+	</listener>
+<!-- 	<listener> -->
+<!-- 		<listener-class>org.springframework.web.util.Log4jConfigListener</listener-class> -->
+<!-- 	</listener> -->
+
+	<servlet>
+		<servlet-name>mvc</servlet-name>
+		<servlet-class>org.springframework.web.servlet.DispatcherServlet</servlet-class>
+		<init-param>
+			<param-name>contextConfigLocation</param-name>
+			<param-value>classpath:config/spring/dispatcher-*.xml</param-value>
+		</init-param>
+		<load-on-startup>2</load-on-startup>
+	</servlet>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.do</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.m</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.json</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.xml</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.xls</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.pop</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.ifm</url-pattern>
+	</servlet-mapping>
+	<servlet-mapping>
+		<servlet-name>mvc</servlet-name>
+		<url-pattern>*.jss</url-pattern>
+	</servlet-mapping>
+
+	<session-config>
+		<session-timeout>300</session-timeout>
+<!-- 		<tracking-mode>COOKIE</tracking-mode> -->
+	</session-config>
+	<welcome-file-list>
+		<welcome-file>index.jsp</welcome-file>
+	</welcome-file-list>
+
+	<error-page>
+		<exception-type>java.lang.Throwable</exception-type>
+		<location>/common/error/uncaughtException.do</location>
+	</error-page>
+	<error-page>
+		<error-code>404</error-code>
+		<location>/common/error/resourceNotFound.do</location>
+	</error-page>
+
+	<jsp-config>
+		<taglib>
+			<taglib-uri>http://cvo/util</taglib-uri>
+			<taglib-location>/WEB-INF/tlds/util.tld</taglib-location>
+		</taglib>
+	</jsp-config>
+</web-app>

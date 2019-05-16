@@ -1,0 +1,67 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE form-validation PUBLIC 
+    "-//Apache Software Foundation//DTD Commons Validator Rules Configuration 1.1//EN" 
+    "http://jakarta.apache.org/commons/dtds/validator_1_1.dtd">
+
+<form-validation>
+	<formset>
+		<form name="exam.sample.validTest1">
+			<field property="userId" depends="required,mask">
+				<arg0 key="사용자아이디" resource="false" />
+				<var>
+				    <var-name>mask</var-name>
+				    <var-value>^[a-zA-Z][a-zA-Z0-9_]{5,15}$</var-value>		
+				</var>
+			</field>
+		</form>
+		
+		<form name="exam.sample.validTest2">
+			<field property="userAge" depends="integer,range">
+				<arg0 key="나이" resource="false" />
+				<var>
+				    <var-name>min</var-name>
+				    <var-value>1</var-value>		
+				</var>
+				<var>
+				    <var-name>max</var-name>
+				    <var-value>150</var-value>		
+				</var>
+			</field>
+		</form>
+		
+		<form name="exam.sample.validTest3">
+			<field property="birthday" depends="date">
+				<arg0 key="생년월일" resource="false" />
+				<var>
+				    <var-name>datePattern</var-name>
+				    <var-value>yyyy.MM.dd</var-value>		
+				</var>
+			</field>
+		</form>
+		
+		<form name="exam.sample.validTest4">
+			<field property="nicname" depends="minlength,maxlength">
+				<arg0 key="별명" resource="false" />
+				<var>
+				    <var-name>minlength</var-name>
+				    <var-value>6</var-value>		
+				</var>
+				<var>
+				    <var-name>maxlength</var-name>
+				    <var-value>12</var-value>		
+				</var>
+			</field>
+		</form>
+		
+		<form name="exam.sample.validTest5">
+			<field property="ip" depends="validwhen">
+				<arg0 key="IP가 있는 경우 Protocol은 http 또는 https만 가능합니다" resource="false" />
+				<var>
+				    <var-name>test</var-name>
+				    <var-value>((*this* == null) or ((*this* != null) and ((protocol == 'http') or (protocol == 'https'))))</var-value>		
+				</var>
+			</field>
+		</form>
+		
+	</formset>
+</form-validation>

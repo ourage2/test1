@@ -1,0 +1,1196 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="crate">
+
+	<!-- SAP인터페이스 현황 검색조건 -->
+	<sql id="sapIfSrch">
+		<where>
+			<if test='!srchCenterCdList.isEmpty and srchCenterCdList.size != 0'>
+				<foreach item="item" collection="srchCenterCdList" open="AND (" separator=", A.CENTER_CD) > 0 OR " close=", A.CENTER_CD) > 0)">
+					CHARINDEX(#{item.key}
+				</foreach>
+			</if>
+
+			<if test='srchShipNo != null and srchShipNo != ""'>
+				AND A.SHIP_NO LIKE '%' + #{srchShipNo} + '%'
+			</if>
+
+			<if test='srchSendDiv != null and srchSendDiv != ""'>
+				AND A.SEND_DIV = #{srchSendDiv}
+			</if>
+
+			<if test='srchIfDivCd != null and srchIfDivCd != ""'>
+				AND A.IF_DIV_CD = #{srchIfDivCd}
+			</if>
+
+			<if test='srchSuccYn != null and srchSuccYn != ""'>
+				AND A.SUCC_YN = #{srchSuccYn}
+			</if>
+
+			<if test='srchStrDt != null and srchStrDt != ""'>
+				AND A.INSERT_DT &gt;= CONVERT(DATETIME, #{srchStrDt}, 112)
+			</if>
+			<if test='srchEndDt != null and srchEndDt != ""'>
+				AND A.INSERT_DT &lt; CONVERT(DATETIME, #{srchEndDt}, 112) + 1
+			</if>
+		</where>
+	</sql>
+
+	<!-- SAP인터페이스 총갯수 -->
+	<select id="sapIfCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_SAP_IF_HIST A WITH(NOLOCK)
+		<include refid="sapIfSrch" />
+	</select>
+
+	<!-- SAP인터페이스 조회 -->
+	<select id="sapIfList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER(ORDER BY A.INSERT_DT DESC) AS RNUM
+				</otherwise>
+			</choose>
+			,B.CENTER_NM
+			,A.IF_SEQ
+			,ISNULL(A.SHIP_NO, '-') AS SHIP_NO
+			,ISNULL(A.DELI_NO, '-') AS DELI_NO
+			,CASE
+				 WHEN A.SEND_DIV = 'D' THEN '다운로드'
+				 ELSE '업로드'
+			 END AS SEND_DIV
+			,C.CD_NM AS IF_DIV_NM
+			,CASE
+				 WHEN A.SUCC_YN = 'Y' THEN '성공'
+				 ELSE '실패'
+			 END AS SUCC_YN
+			,CASE A.ERR_MSG
+				 WHEN 'Already been processed.' THEN '관리자 사전처리'
+				 WHEN 'Receiving duplicate Data.' THEN '기사 이중 처리'
+				 WHEN 'Required field missing.' THEN '필수값 없음'
+				 WHEN 'No data received.' THEN '데이터 없음'
+				 ELSE A.ERR_MSG
+			 END AS ERR_MSG
+			,CONVERT(VARCHAR, A.INSERT_DT, 120) AS IF_DT
+		FROM TB_SAP_IF_HIST A WITH(NOLOCK)
+		LEFT OUTER JOIN TB_CENTER B WITH(NOLOCK)
+			ON A.CENTER_CD = B.CENTER_CD
+		LEFT OUTER JOIN TB_CD C
+			ON C.GRP_CD = 'SAP_IF_DIV'
+			AND A.IF_DIV_CD = C.CD
+		<include refid="sapIfSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<sql id="inOutCte">
+		WITH T1 AS (
+			SELECT
+				  PA.SHIP_NO
+				, PA.PKG_CD
+				, SUM(PA.SAP_OUT_CNT) AS SAP_OUT_CNT
+				, SUM(ISNULL(PA.OUT_CNT, 0)) AS AGENT_OUT_CNT
+				, SUM(ISNULL(PA.IN_CNT, 0)) AS AGENT_IN_CNT
+			FROM TB_PKG_AGENT PA WITH(NOLOCK)
+			WHERE EXISTS (
+				SELECT 1
+				FROM TB_DELI AA WITH(NOLOCK)
+				INNER JOIN TB_DELI_DTL BB WITH(NOLOCK)
+					ON BB.SHIP_NO = AA.SHIP_NO
+					AND BB.BIZ_CD = 'D'
+				<where>
+					AND AA.SHIP_NO = PA.SHIP_NO
+					<if test='srchStrDt != null and srchStrDt != ""'>
+						AND AA.SHIP_REQ_DATE &gt;= #{srchStrDt}
+					</if>
+					<if test='srchEndDt != null and srchEndDt != ""'>
+						AND AA.SHIP_REQ_DATE &lt;= #{srchEndDt}
+					</if>
+				</where>
+			)
+			GROUP BY PA.SHIP_NO, PA.PKG_CD
+		)
+		, T2 AS (
+			SELECT
+				  A.SHIP_NO
+				, COUNT(*) AS RCPT_CNT
+				, SUM(IIF(B.RCPT_YN = 'Y', 1, 0)) AS RCPT_Y_CNT
+			FROM TB_DELI A WITH(NOLOCK)
+			INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+				ON B.SHIP_NO = A.SHIP_NO
+				AND B.BIZ_CD = 'D'
+			<where>
+				<if test='srchStrDt != null and srchStrDt != ""'>
+					AND A.SHIP_REQ_DATE &gt;= #{srchStrDt}
+				</if>
+				<if test='srchEndDt != null and srchEndDt != ""'>
+					AND A.SHIP_REQ_DATE &lt;= #{srchEndDt}
+				</if>
+			</where>
+			GROUP BY A.SHIP_NO
+		)
+	</sql>
+
+	<sql id="inOutSrch">
+		<where>
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI_DTL AA WITH(NOLOCK)
+				WHERE AA.SHIP_NO = DELI.SHIP_NO
+				AND AA.BIZ_CD = 'D'
+			)
+			<if test='srchStrDt != null and srchStrDt != ""'>
+				AND DELI.SHIP_REQ_DATE &gt;= #{srchStrDt}
+			</if>
+			<if test='srchEndDt != null and srchEndDt != ""'>
+				AND DELI.SHIP_REQ_DATE &lt;= #{srchEndDt}
+			</if>
+
+			<if test='!srchCenterCdList.isEmpty and srchCenterCdList.size != 0'>
+				<foreach item="item" collection="srchCenterCdList" open="AND (" separator=", DELI.CENTER_CD) > 0 OR " close=", DELI.CENTER_CD) > 0)">
+					CHARINDEX(#{item.key}
+				</foreach>
+			</if>
+
+			<if test='srchShipNo != null and srchShipNo != ""'>
+				AND PKG.SHIP_NO LIKE '%' + #{srchShipNo} + '%'
+			</if>
+
+			<if test='srchCarId != null and srchCarId != ""'>
+				AND DELI.CAR_ID LIKE '%' + #{srchCarId} + '%'
+			</if>
+
+			<if test='srchPkgCd != null and srchPkgCd != ""'>
+				AND PKG.PKG_CD = #{srchPkgCd}
+			</if>
+
+			<if test='srchInoutDifYn != null and srchInoutDifYn != ""'>
+				AND PKG.INOUT_DIF_YN = #{srchInoutDifYn}
+			</if>
+
+			<if test='srchUpdateYn != null and srchUpdateYn != ""'>
+				AND PKG.UPDATE_YN = #{srchUpdateYn}
+			</if>
+
+			<if test='srchRcptCompYn != null and srchRcptCompYn != ""'>
+				<choose>
+					<when test='srchRcptCompYn == "Y"'>
+						AND E.RCPT_Y_CNT > 0
+						AND E.RCPT_Y_CNT = E.RCPT_CNT
+					</when>
+					<otherwise>
+						AND E.RCPT_Y_CNT != E.RCPT_CNT
+					</otherwise>
+				</choose>
+			</if>
+
+		</where>
+	</sql>
+
+	<!-- 포장재 회수현황 총갯수 -->
+	<select id="inOutCnt" parameterType="map" resultType="int">
+		<include refid="inOutCte"/>
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI DELI WITH(NOLOCK)
+		INNER JOIN TB_PKG PKG WITH(NOLOCK)
+			ON PKG.SHIP_NO = DELI.SHIP_NO
+		INNER JOIN T1 PKG_AGENT WITH(NOLOCK)
+			ON PKG.SHIP_NO = PKG_AGENT.SHIP_NO
+			AND PKG.PKG_CD = PKG_AGENT.PKG_CD
+		<if test='srchRcptCompYn != null and srchRcptCompYn != ""'>
+ 		INNER JOIN T2 E
+ 			ON E.SHIP_NO = DELI.SHIP_NO
+		</if>
+		<include refid="inOutSrch" />
+	</select>
+
+	<!-- 포장재 회수현황 조회 -->
+	<select id="inOutList" parameterType="map" resultType="box">
+		<include refid="inOutCte"/>
+		<include refid="cmn.pageStr" />
+		SELECT
+		<choose>
+			<when test='sortColumn != null and sortColumn != ""'>
+				ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+			</when>
+			<otherwise>
+				ROW_NUMBER() OVER(ORDER BY A.SHIP_REQ_DATE, A.SHIP_NO, A.PKG_CD) AS RNUM
+			</otherwise>
+		</choose>
+			, A.SHIP_REQ_DATE
+			, A.SHIP_NO
+			, A.CAR_ID
+			, A.PKG_CD
+			, CD.CD_NM AS PKG_NM
+			, A.OUT_CNT
+			, A.OUT_ID
+			, A.SAP_OUT_CNT
+			, A.AGENT_OUT_CNT
+			, A.AGENT_IN_CNT
+			, A.IN_ID
+			, A.IN_CNT
+			, A.INOUT_DIF_YN
+			, A.UPDATE_YN
+			, A.RCPT_YN_CNT
+			, A.TOT_CNT
+		FROM (
+			SELECT
+				  DELI.SHIP_REQ_DATE
+				, PKG.SHIP_NO
+				, DELI.CAR_ID
+				, PKG.PKG_CD
+				, PKG.OUT_CNT
+				, PKG.OUT_ID
+				, PKG_AGENT.SAP_OUT_CNT
+				, PKG_AGENT.AGENT_OUT_CNT
+				, PKG_AGENT.AGENT_IN_CNT
+				, PKG.IN_ID
+				, PKG.IN_CNT
+				, PKG.INOUT_DIF_YN
+				, PKG.UPDATE_YN
+ 				, CONCAT(E.RCPT_Y_CNT, '/', E.RCPT_CNT) AS RCPT_YN_CNT
+ 				, COUNT(*) OVER() AS TOT_CNT
+			FROM TB_DELI DELI WITH(NOLOCK)
+			INNER JOIN TB_PKG PKG WITH(NOLOCK)
+				ON PKG.SHIP_NO = DELI.SHIP_NO
+			INNER JOIN T1 PKG_AGENT WITH(NOLOCK)
+				ON PKG.SHIP_NO = PKG_AGENT.SHIP_NO
+				AND PKG.PKG_CD = PKG_AGENT.PKG_CD
+ 			INNER JOIN T2 E
+ 				ON E.SHIP_NO = DELI.SHIP_NO
+			<include refid="inOutSrch" />
+		) A
+		LEFT OUTER JOIN TB_CD CD
+			ON CD.GRP_CD = 'PKG_CD'
+			AND A.PKG_CD = CD.CD
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!-- 포장재 회수량 조정 -->
+	<sql id="inOutCntAdjSrch">
+		<where>
+			AND PKG_AGENT.SHIP_NO = #{shipNo}
+		</where>
+	</sql>
+
+	<!-- 포장재 회수량 조정 총갯수 -->
+	<select id="inOutCntAdjCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_PKG_AGENT PKG_AGENT WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL DELI_DTL WITH(NOLOCK)
+			ON DELI_DTL.SHIP_NO = PKG_AGENT.SHIP_NO
+			AND DELI_DTL.AGENT_CD = PKG_AGENT.AGENT_CD
+			AND DELI_DTL.DELI_NO = PKG_AGENT.DELI_NO
+			AND DELI_DTL.BIZ_CD = 'D'
+		INNER JOIN TB_DELI DELI WITH(NOLOCK)
+			ON DELI.SHIP_NO = PKG_AGENT.SHIP_NO
+		<include refid="inOutCntAdjSrch"/>
+	</select>
+
+	<!-- 포장재 회수량 조정 조회 -->
+	<select id="inOutCntAdjList" parameterType="map" resultType="box">
+		SELECT
+			  ROW_NUMBER() OVER(ORDER BY DELI.SHIP_REQ_DATE, PKG_AGENT.SHIP_NO, DELI_DTL.DELI_NO, PKG_AGENT.PKG_CD) AS RNUM
+			, CAST(DELI.SHIP_REQ_DATE AS DATE) AS SHIP_REQ_DATE
+			, PKG_AGENT.SHIP_NO
+			, PKG_AGENT.AGENT_CD
+			, DELI_DTL.AGENT_NM
+			, PKG_AGENT.DELI_NO
+			, PKG_AGENT.PKG_CD
+			, PKG_CD.CD_NM AS PKG_NM
+			, PKG_AGENT.SAP_OUT_CNT
+			, ISNULL(PKG_AGENT.OUT_CNT, 0) AS OUT_CNT
+			, PKG_AGENT.OUT_ADJ_CNT
+			, ISNULL(PKG_AGENT.IN_CNT, 0) AS IN_CNT
+			, PKG_AGENT.IN_ADJ_CNT
+			, PKG_AGENT.ADJ_DESC
+			, DELI_DTL.RCPT_YN
+		FROM TB_PKG_AGENT PKG_AGENT WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL DELI_DTL WITH(NOLOCK)
+			ON DELI_DTL.SHIP_NO = PKG_AGENT.SHIP_NO
+			AND DELI_DTL.AGENT_CD = PKG_AGENT.AGENT_CD
+			AND DELI_DTL.DELI_NO = PKG_AGENT.DELI_NO
+			AND DELI_DTL.BIZ_CD = 'D'
+		INNER JOIN TB_DELI DELI WITH(NOLOCK)
+			ON DELI.SHIP_NO = PKG_AGENT.SHIP_NO
+		LEFT OUTER JOIN TB_CD PKG_CD
+			ON PKG_CD.GRP_CD = 'PKG_CD'
+			AND PKG_CD.CD = PKG_AGENT.PKG_CD
+		<include refid="inOutCntAdjSrch"/>
+	</select>
+
+	<!-- 회수수량조정 - 출고회수수량 수정 -->
+	<update id="pkgAgentAdjCntUpdate" parameterType="map">
+		UPDATE TB_PKG_AGENT SET
+			  IN_ADJ_CNT  = #{inAdjCnt}
+			, OUT_ADJ_CNT = #{outAdjCnt}
+			, ADJ_DESC    = #{adjDesc}
+			, UPDATE_DT   = GETDATE()
+			, UPDATE_ID   = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND PKG_CD = #{pkgCd}
+		AND AGENT_CD = #{agentCd}
+		AND DELI_NO = #{deliNo}
+	</update>
+
+	<!-- 회수수량조정 - 관리자수정여부 수정 -->
+	<update id="pkgAdjUpdate" parameterType="map">
+		WITH T1 AS (
+			SELECT
+				  SHIP_NO
+				, PKG_CD
+				, OUT_CNT
+				, IN_CNT
+			FROM TB_PKG WITH(NOLOCK)
+			WHERE SHIP_NO = #{shipNo}
+			AND PKG_CD = #{pkgCd}
+		),
+		T2 AS (
+			SELECT
+				  SHIP_NO
+				, PKG_CD
+				, SUM(SAP_OUT_CNT) AS SAP_OUT_CNT
+				, SUM(ISNULL(OUT_CNT, 0)) AS AGENT_OUT_CNT
+				, SUM(ISNULL(IN_CNT, 0)) AS AGENT_IN_CNT
+			FROM TB_PKG_AGENT WITH(NOLOCK)
+			WHERE SHIP_NO = #{shipNo}
+			AND PKG_CD = #{pkgCd}
+			GROUP BY SHIP_NO, PKG_CD
+		)
+		UPDATE A SET
+			  A.UPDATE_YN = 'Y'
+			, A.INOUT_DIF_YN = B.DIF_YN
+			, A.UPDATE_DT = GETDATE()
+			, A.UPDATE_ID = #{sBox.userId}
+		FROM TB_PKG A
+		INNER JOIN (
+			SELECT
+				  A.SHIP_NO
+				, A.PKG_CD
+				, IIF(IIF(C.ETC1 = 'P', A.OUT_CNT, B.SAP_OUT_CNT) - B.AGENT_OUT_CNT + B.AGENT_IN_CNT - A.IN_CNT = 0, 'N', 'Y') AS DIF_YN
+			FROM T1 A
+			INNER JOIN T2 B
+				ON B.SHIP_NO = A.SHIP_NO
+				AND B.PKG_CD = A.PKG_CD
+			INNER JOIN TB_CD C
+				ON C.GRP_CD = 'PKG_CD'
+				AND C.USE_YN = 'Y'
+				AND C.CD = A.PKG_CD
+		) B
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.PKG_CD = A.PKG_CD
+		WHERE A.SHIP_NO = #{shipNo}
+		AND A.PKG_CD = #{pkgCd}
+	</update>
+
+	<!-- 회수수량조정 - 전표확인 여부 수정 -->
+	<update id="rcptYnUpdate" parameterType="map">
+		UPDATE TB_DELI_DTL SET
+			  RCPT_YN = #{rcptYn}
+			, UPDATE_DT   = GETDATE()
+			, UPDATE_ID   = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND AGENT_CD = #{agentCd}
+		AND DELI_NO = #{deliNo}
+	</update>
+
+	<!-- 관리자수정 이력조회 -->
+	<sql id="inOutAdjResultSrch">
+		<where>
+
+			<if test='srchStrDt != null and srchStrDt != ""'>
+				AND DELI.SHIP_REQ_DATE &gt;= #{srchStrDt}
+			</if>
+			<if test='srchEndDt != null and srchEndDt != ""'>
+				AND DELI.SHIP_REQ_DATE &lt;= #{srchEndDt}
+			</if>
+
+			<if test='!srchCenterCdList.isEmpty and srchCenterCdList.size != 0'>
+				<foreach item="item" collection="srchCenterCdList" open="AND (" separator=", DELI.CENTER_CD) > 0 OR " close=", DELI.CENTER_CD) > 0)">
+					CHARINDEX(#{item.key}
+				</foreach>
+			</if>
+
+			<if test='srchShipNo != null and srchShipNo != ""'>
+				AND DELI.SHIP_NO LIKE '%' + #{srchShipNo} + '%'
+			</if>
+
+			<if test='srchPkgCd != null and srchPkgCd != ""'>
+				AND PKG.PKG_CD = #{srchPkgCd}
+			</if>
+
+			<if test='srchCarId != null and srchCarId != ""'>
+				AND DELI.CAR_ID LIKE '%' + #{srchCarId} + '%'
+			</if>
+		</where>
+	</sql>
+
+	<!-- 관리자수정 이력조회 총갯수 -->
+	<select id="inOutAdjResultCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI DELI WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL DELI_DTL WITH(NOLOCK)
+			ON DELI_DTL.SHIP_NO = DELI.SHIP_NO
+			AND DELI_DTL.BIZ_CD = 'D'
+		LEFT OUTER JOIN TB_CAR CAR WITH(NOLOCK)
+			ON DELI.CAR_ID = CAR.CAR_ID
+		INNER JOIN TB_PKG_AGENT PKG_AGENT WITH(NOLOCK)
+			ON PKG_AGENT.SHIP_NO = DELI_DTL.SHIP_NO
+			AND PKG_AGENT.DELI_NO = DELI_DTL.DELI_NO
+			AND PKG_AGENT.AGENT_CD = DELI_DTL.AGENT_CD
+		INNER JOIN TB_PKG PKG WITH(NOLOCK)
+			ON PKG.SHIP_NO = PKG_AGENT.SHIP_NO
+			AND PKG.PKG_CD = PKG_AGENT.PKG_CD
+			AND PKG.UPDATE_YN = 'Y'
+			AND PKG_AGENT.ADJ_DESC IS NOT NULL
+		LEFT OUTER JOIN TB_CD PKG_CD
+			ON PKG_CD.GRP_CD = 'PKG_CD'
+			AND PKG.PKG_CD = PKG_CD.CD
+		<include refid="inOutAdjResultSrch" />
+	</select>
+
+	<!-- 관리자수정 이력조회 -->
+	<select id="inOutAdjResultList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER(ORDER BY DELI.SHIP_REQ_DATE, DELI.SHIP_NO, DELI_DTL.AGENT_NM, PKG.PKG_CD) AS RNUM
+				</otherwise>
+			</choose>
+			, DELI.SHIP_REQ_DATE
+			, DELI.SHIP_NO
+			, DELI.CAR_ID
+			, DELI_DTL.DELI_NO
+			, DELI_DTL.AGENT_CD
+			, DELI_DTL.AGENT_NM
+			, PKG_CD.CD_NM AS PKG_NM
+			, PKG.OUT_CNT
+			, PKG_AGENT.SAP_OUT_CNT
+			, ISNULL(PKG_AGENT.OUT_CNT, 0) AS AGENT_OUT_CNT
+			, ISNULL(PKG_AGENT.OUT_ADJ_CNT, 0) AS AGENT_OUT_ADJ_CNT
+			, ISNULL(PKG_AGENT.IN_CNT, 0) AS AGENT_IN_CNT
+			, ISNULL(PKG_AGENT.IN_ADJ_CNT, 0) AS AGENT_IN_ADJ_CNT
+		FROM TB_DELI DELI WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL DELI_DTL WITH(NOLOCK)
+			ON DELI_DTL.SHIP_NO = DELI.SHIP_NO
+			AND DELI_DTL.BIZ_CD = 'D'
+		LEFT OUTER JOIN TB_CAR CAR WITH(NOLOCK)
+			ON DELI.CAR_ID = CAR.CAR_ID
+		INNER JOIN TB_PKG_AGENT PKG_AGENT WITH(NOLOCK)
+			ON PKG_AGENT.SHIP_NO = DELI_DTL.SHIP_NO
+			AND PKG_AGENT.DELI_NO = DELI_DTL.DELI_NO
+			AND PKG_AGENT.AGENT_CD = DELI_DTL.AGENT_CD
+		INNER JOIN TB_PKG PKG WITH(NOLOCK)
+			ON PKG.SHIP_NO = PKG_AGENT.SHIP_NO
+			AND PKG.PKG_CD = PKG_AGENT.PKG_CD
+			AND PKG.UPDATE_YN = 'Y'
+			AND PKG_AGENT.ADJ_DESC IS NOT NULL
+		LEFT OUTER JOIN TB_CD PKG_CD
+			ON PKG_CD.GRP_CD = 'PKG_CD'
+			AND PKG.PKG_CD = PKG_CD.CD
+		<include refid="inOutAdjResultSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!-- 포장재 회수현황 통계관리 검색조건 -->
+	<sql id="inOutAnalSrch">
+		<where>
+
+			<if test='!srchCenterCdList.isEmpty and srchCenterCdList.size != 0'>
+				<foreach item="item" collection="srchCenterCdList" open="AND (" separator=", PKG_ANAL.CENTER_CD) > 0 OR " close=", PKG_ANAL.CENTER_CD) > 0)">
+					CHARINDEX(#{item.key}
+				</foreach>
+			</if>
+
+			<if test='srchCarId != null and srchCarId != ""'>
+				AND PKG_ANAL.CAR_ID LIKE '%' + #{srchCarId} + '%'
+			</if>
+
+			<if test='srchPkgCd != null and srchPkgCd != ""'>
+				AND PKG_ANAL.PKG_CD =  #{srchPkgCd}
+			</if>
+
+			<if test='srchStdYm != null and srchStdYm != ""'>
+				AND PKG_ANAL.STD_YM = #{srchStdYm}
+			</if>
+		</where>
+	</sql>
+
+	<!-- 포장재 회수현황 통계관리 총갯수 -->
+	<select id="inOutAnalCnt" parameterType="map" resultType="int">
+		SELECT COUNT(ANAL.CNT) AS CNT
+		FROM (
+			SELECT COUNT(*) AS CNT
+			FROM TB_PKG_ANAL PKG_ANAL WITH(NOLOCK)
+			INNER JOIN TB_AGENT AGENT WITH(NOLOCK)
+			    ON AGENT.AGENT_CD = PKG_ANAL.AGENT_CD
+			<include refid="inOutAnalSrch"/>
+			GROUP BY PKG_ANAL.CAR_ID, PKG_ANAL.AGENT_CD, PKG_ANAL.PKG_CD
+		) ANAL
+	</select>
+
+	<!-- 포장재 회수현황 통계관리 조회 -->
+	<select id="inOutAnalList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+		<choose>
+			<when test='sortColumn != null and sortColumn != ""'>
+				ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+			</when>
+			<otherwise>
+				ROW_NUMBER() OVER(ORDER BY ANAL.CAR_ID, ANAL.AGENT_CD, ANAL.PKG_NM) AS RNUM
+			</otherwise>
+		</choose>
+			, ANAL.*
+		FROM (
+			SELECT
+				  PKG_ANAL.CAR_ID
+				, PKG_ANAL.AGENT_CD
+				, MAX(AGENT_NM) AS AGENT_NM
+				, MAX(PKG_CD.CD_NM) AS PKG_NM
+				, SUM(PKG_ANAL.SAP_OUT_CNT) AS SAP_OUT_CNT
+				, SUM(PKG_ANAL.IN_CNT) AS IN_CNT
+				, SUM(PKG_ANAL.IN_ADJ_CNT) AS IN_ADJ_CNT
+				, CONCAT(CAST(AVG(PKG_ANAL.IN_RT) AS NUMERIC(20, 3)), '%') AS IN_RT
+			FROM TB_PKG_ANAL PKG_ANAL WITH(NOLOCK)
+			INNER JOIN TB_AGENT AGENT WITH(NOLOCK)
+				ON AGENT.AGENT_CD = PKG_ANAL.AGENT_CD
+			LEFT OUTER JOIN TB_CD PKG_CD WITH(NOLOCK)
+				ON PKG_CD.GRP_CD = 'PKG_CD'
+				AND PKG_CD.CD = PKG_ANAL.PKG_CD
+			<include refid="inOutAnalSrch" />
+			GROUP BY PKG_ANAL.CAR_ID, PKG_ANAL.AGENT_CD, PKG_ANAL.PKG_CD
+		) ANAL
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!-- SAP 전송여부조회 검색조건 -->
+	<sql id="sapIfResultSrch">
+		<where>
+
+			<if test='!srchCenterCdList.isEmpty and srchCenterCdList.size != 0'>
+				<foreach item="item" collection="srchCenterCdList" open="AND (" separator=", A.CENTER_CD) > 0 OR " close=", A.CENTER_CD) > 0)">
+					CHARINDEX(#{item.key}
+				</foreach>
+			</if>
+
+			<if test='srchShipNo != null and srchShipNo != ""'>
+				AND A.SHIP_NO LIKE '%' + #{srchShipNo} + '%'
+			</if>
+
+			<if test='srchDeliNo != null and srchDeliNo != ""'>
+				AND B.DELI_NO LIKE '%' + #{srchDeliNo} + '%'
+			</if>
+
+			<if test='srchSendStat != null and srchSendStat != ""'>
+				<if test='srchSendStat == "M"'>
+					AND (B.OUT_CNT_IF_STAT IS NULL OR B.IN_CNT_IF_STAT IS NULL)
+				</if>
+				<if test='srchSendStat != "M"'>
+					AND (B.OUT_CNT_IF_STAT = #{srchSendStat} OR B.IN_CNT_IF_STAT = #{srchSendStat})
+				</if>
+			</if>
+
+			<if test='srchStrDt != null and srchStrDt != ""'>
+				AND A.SHIP_REQ_DATE &gt;= #{srchStrDt}
+			</if>
+			<if test='srchEndDt != null and srchEndDt != ""'>
+				AND A.SHIP_REQ_DATE &lt;= #{srchEndDt}
+			</if>
+		</where>
+	</sql>
+
+	<!-- SAP 전송여부조회 총갯수 -->
+	<select id="sapIfResultCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON A.SHIP_NO = B.SHIP_NO
+			AND B.BIZ_CD = 'D'
+		<include refid="sapIfResultSrch" />
+	</select>
+
+	<!-- SAP 전송여부조회 조회 -->
+	<select id="sapIfResultList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER (ORDER BY A.SHIP_REQ_DATE DESC, A.SHIP_NO, B.DELI_NO) AS RNUM
+				</otherwise>
+			</choose>
+			, A.CENTER_NM
+			, CAST(A.SHIP_REQ_DATE AS DATE) AS SHIP_REQ_DATE
+			, A.SHIP_NO
+			, B.DELI_NO
+			, CASE
+				WHEN B.OUT_CNT_IF_STAT IS NULL THEN '미전송'
+				WHEN B.OUT_CNT_IF_STAT = 'R' THEN '전송대기'
+				WHEN B.OUT_CNT_IF_STAT = 'Y' THEN '성공'
+				WHEN B.OUT_CNT_IF_STAT = 'N' THEN '실패'
+			END AS OUT_CNT_IF_STAT
+			, CASE
+				WHEN B.IN_CNT_IF_STAT IS NULL THEN '미전송'
+				WHEN B.IN_CNT_IF_STAT = 'R' THEN '전송대기'
+				WHEN B.IN_CNT_IF_STAT = 'Y' THEN '성공'
+				WHEN B.IN_CNT_IF_STAT = 'N' THEN '실패'
+			END AS IN_CNT_IF_STAT
+			, CASE WHEN A.DELI_YN = 'Y' THEN '완료' ELSE '미완료' END AS DELI_YN
+			, CASE
+				WHEN (ISNULL(B.OUT_CNT_IF_STAT, 'N') = 'N' OR ISNULL(B.IN_CNT_IF_STAT, 'N') = 'N') THEN 'Y'
+				ELSE 'N'
+			END AS CAN_MANUAL_SEND
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON A.SHIP_NO = B.SHIP_NO
+			AND B.BIZ_CD = 'D'
+		<include refid="sapIfResultSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!--  -->
+	<select id="ifZsds4103Seqno" parameterType="map" resultType="string">
+		SELECT MAX(SEQNO) AS SEQNO
+		FROM IF_ZSDS4103 WITH(NOLOCK)
+		WHERE SHIPNO = #{shipNo}
+		AND IF_FLG = #{ifFlg}
+	</select>
+
+	<!--  -->
+	<select id="ifZsds4104Seqno" parameterType="map" resultType="string">
+		SELECT MAX(SEQNO) AS SEQNO
+		FROM IF_ZSDS4104 WITH(NOLOCK)
+		WHERE SHIPNO = #{shipNo}
+		AND IF_FLG = #{ifFlg}
+	</select>
+
+	<!--  -->
+	<sql id="sapIfCmn">
+		AND EXISTS (
+			SELECT 1
+			FROM TB_DELI_DTL AA WITH(NOLOCK)
+			WHERE AA.BIZ_CD = 'D'
+			AND AA.SHIP_NO = B.SHIP_NO
+			AND AA.DELI_NO = B.DELI_NO
+		<if test='div != null and div == "driver"'>
+			<if test='inOut != null and inOut == "out"'>
+				AND AA.OUT_CNT_IF_STAT IS NULL
+			</if>
+			<if test='inOut != null and inOut == "in"'>
+				AND AA.IN_CNT_IF_STAT IS NULL
+			</if>
+		</if>
+		)
+	</sql>
+
+	<!--  -->
+	<update id="outCntIfMerge" parameterType="map">
+		DECLARE @SQ VARCHAR(5);
+		<if test='seqno == null or seqno == ""'>
+			SELECT @SQ = RIGHT(CONCAT('00000', NEXT VALUE FOR SQ_IF_ZSDS4103), 5);
+		</if>
+
+		MERGE IF_ZSDS4103 A
+		USING (
+			SELECT
+		<choose>
+			<when test='seqno != null and seqno != ""'>
+				#{seqno} AS SEQNO
+			</when>
+			<otherwise>
+				CONCAT(RIGHT(B.DELI_NO, 5), @SQ) AS SEQNO
+			</otherwise>
+		</choose>
+				, A.SHIP_NO AS SHIPNO
+				, B.DELI_NO AS VBELN
+			 	, CONVERT(VARCHAR(8), A.SHIP_REQ_DATE, 112) AS WADAT
+				, B.AGENT_CD AS KUNNR
+			 	, B.PKG_CD AS MATNR
+				, A.CENTER_CD AS WERKS
+				, #{ifFlg} AS IF_FLG
+				, ISNULL(B.OUT_CNT, B.SAP_OUT_CNT) AS LFIMG
+				, ISNULL(B.OUT_ADJ_CNT, 0) AS LFIMG_C
+				, ISNULL(B.ADJ_DESC, '') AS SGTXT
+			FROM TB_DELI A WITH(NOLOCK)
+			INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+				ON B.SHIP_NO = A.SHIP_NO
+			WHERE A.SHIP_NO = #{shipNo}
+			AND B.PKG_CD = #{pkgCd}
+			AND B.AGENT_CD = #{agentCd}
+			AND B.DELI_NO = #{deliNo}
+			AND B.ADJ_DESC IS NOT NULL
+			<include refid="sapIfCmn"/>
+		) B
+			ON B.SEQNO = A.SEQNO
+			AND B.SHIPNO = A.SHIPNO
+			AND B.VBELN = A.VBELN
+			AND B.MATNR = A.MATNR
+			AND B.IF_FLG = A.IF_FLG
+		WHEN NOT MATCHED THEN
+			INSERT (
+				SEQNO,
+				SHIPNO,
+				VBELN,
+				WADAT,
+				KUNNR,
+				MATNR,
+				WERKS,
+				IF_FLG,
+				ZUSER,
+				LFIMG,
+				LFIMG_C,
+				SGTXT,
+				REG_USER,
+				REG_DT,
+				MOD_USER,
+				MOD_DT
+			)
+			VALUES (
+				  B.SEQNO
+				, B.SHIPNO
+				, B.VBELN
+				, B.WADAT
+				, B.KUNNR
+				, B.MATNR
+				, B.WERKS
+				, B.IF_FLG
+				, ISNULL(#{sBox.userId}, 'SAP_IF')
+				, B.LFIMG
+				, B.LFIMG_C
+				, B.SGTXT
+				, ISNULL(#{sBox.userId}, 'SAP_IF')
+				, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+				, ISNULL(#{sBox.userId}, 'SAP_IF')
+				, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+			)
+		WHEN MATCHED THEN
+			UPDATE SET
+				  WADAT = CONVERT(VARCHAR(8), B.WADAT, 112)
+				, KUNNR = B.KUNNR
+				, WERKS = B.WERKS
+				, ZUSER = ISNULL(#{sBox.userId}, 'SAP_IF')
+				, LFIMG = B.LFIMG
+				, LFIMG_C = B.LFIMG_C
+				, SGTXT = B.SGTXT
+				, MOD_USER = ISNULL(#{sBox.userId}, 'SAP_IF')
+				, MOD_DT = CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+		;
+	</update>
+
+	<!--  -->
+	<update id="inCntIfMerge" parameterType="map">
+		DECLARE @SQ VARCHAR(5);
+		<if test='seqno == null or seqno == ""'>
+			SELECT @SQ = RIGHT(CONCAT('00000', NEXT VALUE FOR SQ_IF_ZSDS4104), 5);
+		</if>
+		MERGE IF_ZSDS4104 A
+		USING (
+			SELECT
+		<choose>
+			<when test='seqno != null and seqno != ""'>
+				#{seqno} AS SEQNO
+			</when>
+			<otherwise>
+				CONCAT(RIGHT(B.DELI_NO, 5), @SQ) AS SEQNO
+			</otherwise>
+		</choose>
+				, A.SHIP_NO AS SHIPNO
+				, B.DELI_NO AS VBELN
+				, B.AGENT_CD AS KUNNR
+				, A.CENTER_CD AS WERKS
+				, B.PKG_CD AS MATNR
+				, #{ifFlg} AS IF_FLG
+				, CONVERT(VARCHAR(8), A.SHIP_REQ_DATE, 112) AS WADAT
+				, ISNULL(B.IN_CNT, 0) AS LFIMG
+				, ISNULL(#{sBox.userId}, 'SAP_IF') AS ZUSER
+				, A.CAR_ID AS TDLNR
+				, ISNULL(B.IN_ADJ_CNT, 0) AS LFIMG_C
+				, ISNULL(B.ADJ_DESC, '') AS SGTXT
+			FROM TB_DELI A WITH(NOLOCK)
+			INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+				ON B.SHIP_NO = A.SHIP_NO
+			WHERE A.SHIP_NO = #{shipNo}
+			AND B.PKG_CD = #{pkgCd}
+			AND B.AGENT_CD = #{agentCd}
+			AND B.DELI_NO = #{deliNo}
+			AND B.ADJ_DESC IS NOT NULL
+			<include refid="sapIfCmn"/>
+		) B
+			ON B.SEQNO = A.SEQNO
+			AND B.SHIPNO = A.SHIPNO
+			AND B.VBELN = A.VBELN
+			AND B.MATNR = A.MATNR
+			AND B.IF_FLG = A.IF_FLG
+		WHEN NOT MATCHED THEN
+			INSERT (
+				  SEQNO
+				, SHIPNO
+				, VBELN
+				, KUNNR
+				, WERKS
+				, MATNR
+				, IF_FLG
+				, WADAT
+				, LFIMG
+				, LFIMG_C
+				, ZUSER
+				, TDLNR
+				, SGTXT
+				, REG_USER
+				, REG_DT
+				, MOD_USER
+				, MOD_DT
+			) VALUES (
+				  B.SEQNO
+				, B.SHIPNO
+				, B.VBELN
+				, B.KUNNR
+				, B.WERKS
+				, B.MATNR
+				, B.IF_FLG
+				, B.WADAT
+				, B.LFIMG
+				, B.LFIMG_C
+				, B.ZUSER
+				, B.TDLNR
+				, B.SGTXT
+				, ISNULL(#{sBox.userId}, 'SAP_IF')
+				, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+				, ISNULL(#{sBox.userId}, 'SAP_IF')
+				, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+			)
+		WHEN MATCHED THEN
+			UPDATE SET
+				  KUNNR =  B.KUNNR
+				, WERKS =  B.WERKS
+				, IF_FLG =  B.IF_FLG
+				, WADAT =  B.WADAT
+				, LFIMG =  B.LFIMG
+				, LFIMG_C =  B.LFIMG_C
+				, ZUSER =  B.ZUSER
+				, TDLNR =  B.TDLNR
+				, SGTXT =  B.SGTXT
+				, MOD_USER =  ISNULL(#{sBox.userId}, 'SAP_IF')
+				, MOD_DT =  CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', ''))
+		;
+	</update>
+
+	<!--  -->
+	<insert id="outCntIfInsert" parameterType="map">
+		DECLARE @SQ VARCHAR(5);
+		DECLARE @USER_ID VARCHAR(20);
+
+		SELECT @SQ = RIGHT(CONCAT('00000', NEXT VALUE FOR SQ_IF_ZSDS4103), 5);
+		<choose>
+			<when test="sBox != null">
+				SET @USER_ID = #{sBox.userId};
+			</when>
+			<otherwise>
+				SET @USER_ID = 'SAP_IF';
+			</otherwise>
+		</choose>
+
+		INSERT INTO IF_ZSDS4103(SEQNO, SHIPNO, VBELN, WADAT, KUNNR,
+								MATNR, WERKS, IF_FLG, ZUSER, LFIMG,
+								LFIMG_C, SGTXT, REG_USER, REG_DT, MOD_USER,
+								MOD_DT)
+		SELECT
+			  CONCAT(RIGHT(B.DELI_NO, 5), @SQ) AS SEQNO
+			, A.SHIP_NO                        AS SHIPNO
+			, B.DELI_NO                        AS VBELN
+			, CONVERT(VARCHAR(8), A.SHIP_REQ_DATE, 112) AS WADAT
+			, B.AGENT_CD                       AS KUNNR
+
+			, B.PKG_CD                         AS MATNR
+			, A.CENTER_CD                      AS WERKS
+			, #{ifFlg}                         AS IF_FLG
+			, @USER_ID						AS ZUSER
+
+		<choose>
+			<when test='div == "driver"'>
+				, ISNULL(B.OUT_CNT, 0) AS LFIMG
+			</when>
+			<otherwise>
+				, ISNULL(B.OUT_CNT, B.SAP_OUT_CNT) AS LFIMG
+			</otherwise>
+		</choose>
+
+			, '0' AS LFIMG_C
+			, '' AS SGTXT
+			, @USER_ID AS REG_USER
+			, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', '')) AS REG_DT
+			, @USER_ID AS MOD_USER
+			, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', '')) AS MOD_DT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		<if test='deliNo != null and deliNo != ""'>
+			AND B.DELI_NO = #{deliNo}
+		</if>
+		<include refid="sapIfCmn"/>
+	</insert>
+
+	<!--  -->
+	<insert id="inCntIfInsert" parameterType="map">
+		DECLARE @SQ VARCHAR(5);
+		DECLARE @USER_ID VARCHAR(20);
+
+		SELECT @SQ = RIGHT(CONCAT('00000', NEXT VALUE FOR SQ_IF_ZSDS4104), 5);
+		<choose>
+			<when test="sBox != null">
+				SET @USER_ID = #{sBox.userId};
+			</when>
+			<otherwise>
+				SET @USER_ID = 'SAP_IF';
+			</otherwise>
+		</choose>
+
+		INSERT INTO IF_ZSDS4104(SEQNO, SHIPNO, VBELN, KUNNR, WERKS,
+								MATNR, IF_FLG, WADAT, LFIMG, ZUSER, TDLNR,
+								LFIMG_C, SGTXT, REG_USER, REG_DT,
+								MOD_USER, MOD_DT)
+		SELECT
+			  CONCAT(RIGHT(B.DELI_NO, 5), @SQ) AS SEQNO
+			, A.SHIP_NO                        AS SHIPNO
+			, B.DELI_NO                        AS VBELN
+			, B.AGENT_CD                       AS KUNNR
+			, A.CENTER_CD                      AS WERKS
+
+			, B.PKG_CD                         AS MATNR
+			, #{ifFlg}                         AS IF_FLG
+			, CONVERT(VARCHAR(8), A.SHIP_REQ_DATE, 112) AS WADAT
+			, ISNULL(B.IN_CNT, 0)			AS LFIMG
+			, @USER_ID 						AS ZUSER
+			, A.CAR_ID                         AS TDLNR
+
+			, '0' AS LFIMG_C
+			, '' AS SGTXT
+			, @USER_ID AS REG_USER
+			, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', '')) AS REG_DT
+			, @USER_ID AS MOD_USER
+			, CONCAT(CONVERT(VARCHAR, GETDATE(), 112), REPLACE(CONVERT(VARCHAR, GETDATE(), 108), ':', '')) AS MOD_DT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		<if test='deliNo != null and deliNo != ""'>
+			AND B.DELI_NO = #{deliNo}
+		</if>
+		<include refid="sapIfCmn"/>
+	</insert>
+
+	<!-- 출고수량전송상태, 회수수량전송상태 변경 -->
+	<update id="deliDtlIfStatUpdate" parameterType="map">
+		UPDATE TB_DELI_DTL
+			<set>
+				<if test='outCntIfStat != null and outCntIfStat != ""'>
+					OUT_CNT_IF_STAT = #{outCntIfStat},
+				</if>
+				<if test='inCntIfStat != null and inCntIfStat != ""'>
+					IN_CNT_IF_STAT = #{inCntIfStat},
+				</if>
+			</set>
+		WHERE SHIP_NO = #{shipNo}
+		AND BIZ_CD = 'D'
+		<if test='deliNo != null and deliNo != ""'>
+			AND DELI_NO = #{deliNo}
+		</if>
+		<if test='deliNoList != null and !deliNoList.isEmpty and deliNoList.size != 0'>
+			<foreach item="item" collection="deliNoList" open="AND DELI_NO IN (" separator="," close=")">
+				#{item}
+			</foreach>
+		</if>
+		<if test='div != null and div == "driver"'>
+			<if test='outCntIfStat != null and outCntIfStat != ""'>
+				AND OUT_CNT_IF_STAT IS NULL
+			</if>
+			<if test='inCntIfStat != null and inCntIfStat != ""'>
+				AND IN_CNT_IF_STAT IS NULL
+			</if>
+		</if>
+	</update>
+
+	<sql id="ifZsds410Srch">
+		<where>
+			<if test='div != null and div != ""'>
+				<if test='div == "driver"'>
+					AND SHIPNO = #{shipNo}
+					AND IF_FLG = '1'
+				</if>
+				<if test='div == "manual"'>
+					AND SHIPNO = #{shipNo}
+					AND VBELN = #{deliNo}
+					AND IF_FLG = '1'
+				</if>
+				<if test='div == "ioCntAdj"'>
+					AND SHIPNO = #{shipNo}
+					<!-- AND VBELN = #{deliNo} -->
+					AND IF_FLG = '2'
+				</if>
+			</if>
+		</where>
+	</sql>
+
+	<!--  -->
+	<select id="ifZsds4103SeqNoList" parameterType="map" resultType="string">
+		SELECT DISTINCT
+			SEQNO
+		FROM IF_ZSDS4103 WITH (NOLOCK)
+		<include refid="ifZsds410Srch"/>
+		ORDER BY SEQNO
+	</select>
+
+	<!--  -->
+	<select id="ifZsds4103List" parameterType="map" resultType="box">
+		SELECT
+			  SEQNO
+			, SHIPNO
+			, VBELN
+			, WADAT
+			, KUNNR
+			, MATNR
+			, WERKS
+			, IF_FLG
+			, LFIMG
+			, LFIMG_C
+			, ZUSER
+			, SGTXT
+		FROM IF_ZSDS4103 WITH (NOLOCK)
+		<include refid="ifZsds410Srch"/>
+		ORDER BY SEQNO, SHIPNO, VBELN
+	</select>
+
+	<delete id="ifZsds4103Delete" parameterType="map">
+		DELETE FROM IF_ZSDS4103
+		WHERE SEQNO = #{seqno}
+		AND SHIPNO = #{shipno}
+	</delete>
+
+	<!--  -->
+	<select id="ifZsds4104SeqNoList" parameterType="map" resultType="string">
+		SELECT DISTINCT
+			SEQNO
+		FROM IF_ZSDS4104 WITH (NOLOCK)
+		<include refid="ifZsds410Srch"/>
+		ORDER BY SEQNO
+	</select>
+
+	<!--  -->
+	<select id="ifZsds4104List" parameterType="map" resultType="box">
+		SELECT
+		  SEQNO
+		, SHIPNO
+		, VBELN
+		, KUNNR
+		, WERKS
+		, MATNR
+		, IF_FLG
+		, WADAT
+		, LFIMG
+		, LFIMG_C
+		, ZUSER
+		, TDLNR
+		, SGTXT
+		, VBELN AS ZVBELN	<!-- SAP전송용 납품번호 -->
+		FROM IF_ZSDS4104 WITH (NOLOCK)
+		<include refid="ifZsds410Srch"/>
+		ORDER BY SEQNO, SHIPNO, VBELN
+	</select>
+
+	<delete id="ifZsds4104Delete" parameterType="map">
+		DELETE FROM IF_ZSDS4104
+		WHERE SEQNO = #{seqno}
+		AND SHIPNO = #{shipno}
+	</delete>
+
+	<select id="batchOutDeliDtlList" parameterType="map" resultType="box">
+		SELECT DISTINCT A.SHIP_NO, A.DELI_NO
+		FROM TB_DELI_DTL A WITH(NOLOCK)
+		INNER JOIN TB_CAR_ZONE_IO B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.AGENT_CD = A.AGENT_CD
+			AND B.DELI_NO = A.DELI_NO
+			AND B.ZONE_TYPE = '2'
+		INNER JOIN TB_DELI C WITH(NOLOCK)
+			ON C.SHIP_NO = A.SHIP_NO
+			AND C.DELI_YN = 'Y'
+		WHERE A.OUT_CNT_IF_STAT IS NULL
+		AND A.BIZ_CD = 'D'
+		AND (
+		    DATEDIFF(DAY, GETDATE(), B.SHIP_REQ_DATE) = -1
+		    OR DATEDIFF(DAY, GETDATE(), C.DELIY_DT) = -1
+		)
+	</select>
+
+	<select id="batchInDeliDtlList" parameterType="map" resultType="box">
+		SELECT DISTINCT A.SHIP_NO, A.DELI_NO
+		FROM TB_DELI_DTL A WITH(NOLOCK)
+		INNER JOIN TB_CAR_ZONE_IO B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.AGENT_CD = A.AGENT_CD
+			AND B.DELI_NO = A.DELI_NO
+			AND B.ZONE_TYPE = '2'
+		INNER JOIN TB_DELI C WITH(NOLOCK)
+			ON C.SHIP_NO = A.SHIP_NO
+			AND C.DELI_YN = 'Y'
+		WHERE A.IN_CNT_IF_STAT IS NULL
+		AND A.BIZ_CD = 'D'
+		AND (
+		    DATEDIFF(DAY, GETDATE(), B.SHIP_REQ_DATE) = -1
+		    OR DATEDIFF(DAY, GETDATE(), C.DELIY_DT) = -1
+		)
+	</select>
+
+	<insert id="sapIfHistInsert" parameterType="map">
+		INSERT INTO TB_SAP_IF_HIST (
+			 INSERT_DT
+			,INSERT_ID
+			,IF_SEQ
+			,SEND_DIV
+			,CENTER_CD
+			,SHIP_NO
+			,DELI_NO
+			,IF_DIV_CD
+			,SUCC_YN
+			,ERR_MSG
+		)
+		SELECT
+		 	  GETDATE()
+			<choose>
+				<when test="sBox != null">
+					, #{sBox.userId}
+				</when>
+				<otherwise>
+					, 'SAP_IF'
+				</otherwise>
+			</choose>
+			, #{ifSeq}
+			, #{sendDiv}
+			, A.CENTER_CD
+			, A.SHIP_NO
+			, B.DELI_NO
+			, #{ifDivCd}
+			, #{succYn}
+			, #{errMsg}
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		AND BIZ_CD = 'D'
+		<foreach item="item" collection="deliNoList" open="AND B.DELI_NO IN (" separator="," close=")">
+			#{item}
+		</foreach>
+	</insert>
+
+</mapper>

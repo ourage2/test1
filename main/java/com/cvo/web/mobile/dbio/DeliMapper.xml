@@ -1,0 +1,718 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="deli">
+
+	<!-- 현장출고 검색조건 -->
+	<sql id="inoutSrch">
+		<where>
+			AND A.DELI_YN = 'N'
+			<choose>
+				<when test='srchReleaseYn == "N"'>
+					AND A.SHIP_REQ_DATE >= CAST(GETDATE() AS DATE)
+				</when>
+				<otherwise>
+					AND A.SHIP_REQ_DATE >= CAST(GETDATE() - 7 AS DATE)
+				</otherwise>
+			</choose>
+			AND B.CAR_NO LIKE '%' + #{srchCarNo} + '%'
+			AND A.RELEASE_YN = #{srchReleaseYn}
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI_DTL AA WITH(NOLOCK)
+				WHERE AA.BIZ_CD = 'D'
+				AND AA.SHIP_NO = A.SHIP_NO
+			)
+		</where>
+	</sql>
+
+	<!-- 현장출고 총갯수-->
+	<select id="inoutCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		<include refid="inoutSrch" />
+	</select>
+
+	<!-- 현장출고 조회-->
+	<select id="inoutList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER(ORDER BY A.SHIP_REQ_DATE DESC, A.SHIP_NO DESC) AS RNUM
+				</otherwise>
+			</choose>
+			, A.SHIP_NO
+			, A.SHIP_REQ_DATE
+			, A.RELEASE_YN
+			, B.CAR_NO
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		<include refid="inoutSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<select id="inoutView" parameterType="map" resultType="box">
+		SELECT
+			  A.SHIP_NO
+			, B.CAR_NO
+			, A.RELEASE_YN
+			, A.UNLOAD_CHK_YN
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		WHERE A.SHIP_NO = #{shipNo}
+	</select>
+
+	<!--  -->
+	<select id="inoutDtlList" parameterType="map" resultType="box">
+		SELECT
+			  A.SHIP_NO
+			, A.PKG_CD
+			, B.CD_NM AS PKG_NM
+			, A.OUT_CNT
+		FROM TB_PKG A WITH(NOLOCK)
+		INNER JOIN TB_CD B WITH(NOLOCK)
+			ON B.GRP_CD = 'PKG_CD'
+			AND B.ETC1 = 'P'
+			AND B.CD = A.PKG_CD
+		WHERE A.SHIP_NO = #{shipNo}
+	</select>
+
+	<!-- 현장출고 포장재항목 출고수량 변경 -->
+	<update id="pkgOutCntUpdate" parameterType="map">
+		UPDATE TB_PKG SET
+			  OUT_CNT = #{outCnt}
+			, UPDATE_ID = #{sBox.userId}
+			, UPDATE_DT = GETDATE()
+			, OUT_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND PKG_CD = #{pkgCd}
+	</update>
+
+	<!-- 현장출고완료여부 변경 -->
+	<update id="releaseYnUpdate" parameterType="map">
+		UPDATE TB_DELI SET
+			RELEASE_YN = #{releaseYn}
+		WHERE SHIP_NO = #{shipNo}
+	</update>
+
+	<!-- ############################################################################################################ -->
+
+	<!-- 하차검수 검색조건 -->
+	<sql id="chkSrch">
+		<where>
+			<choose>
+				<when test='srchUnloadChkYn == "N"'>
+					AND A.SHIP_REQ_DATE >= CAST(GETDATE() - 14 AS DATE)
+				</when>
+				<otherwise>
+					AND A.SHIP_REQ_DATE >= CAST(GETDATE() - 7 AS DATE)
+				</otherwise>
+			</choose>
+			AND B.CAR_NO LIKE '%' + #{srchCarNo} + '%'
+			AND A.UNLOAD_CHK_YN = #{srchUnloadChkYn}
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI AA WITH(NOLOCK)
+				INNER JOIN TB_DELI_DTL BB WITH(NOLOCK)
+					ON BB.SHIP_NO = AA.SHIP_NO
+				WHERE BB.BIZ_CD = 'D'
+				AND BB.SHIP_NO = A.SHIP_NO
+				AND (
+					BB.OUT_CNT_IF_STAT IN ('Y', 'N')
+					OR BB.IN_CNT_IF_STAT IN ('Y', 'N')
+					OR AA.DELI_YN = 'Y'
+				)
+			)
+		</where>
+	</sql>
+
+	<!-- 하차검수 총갯수-->
+	<select id="chkCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		<include refid="chkSrch" />
+	</select>
+
+	<!-- 하차검수 조회-->
+	<select id="chkList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER(ORDER BY A.SHIP_REQ_DATE DESC, A.SHIP_NO DESC) AS RNUM
+				</otherwise>
+			</choose>
+			, A.SHIP_NO
+			, A.SHIP_REQ_DATE
+			, A.UNLOAD_CHK_YN
+			, B.CAR_NO
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		<include refid="chkSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!-- 하차검수 포장재항목 회수수량 조회 -->
+	<select id="chkDtlList" parameterType="map" resultType="box">
+		SELECT
+			  A.SHIP_NO
+			, A.PKG_CD
+			, B.CD_NM AS PKG_NM
+			, MAX(A.IN_CNT) AS IN_CNT
+			, SUM(ISNULL(C.IN_CNT, 0)) AS AGENT_IN_CNT
+			, ABS(SUM(ISNULL(C.IN_CNT, 0)) - MAX(A.IN_CNT)) AS DIF_IN_CNT
+		FROM TB_PKG A WITH(NOLOCK)
+		INNER JOIN TB_CD B WITH(NOLOCK)
+			ON B.GRP_CD = 'PKG_CD'
+			AND B.CD = A.PKG_CD
+		INNER JOIN TB_PKG_AGENT C WITH(NOLOCK)
+			ON C.SHIP_NO = A.SHIP_NO
+			AND C.PKG_CD = A.PKG_CD
+		WHERE A.SHIP_NO = #{shipNo}
+		GROUP BY A.SHIP_NO, A.PKG_CD, B.CD_NM
+	</select>
+
+	<!-- 하차검수 포장재항목 회수수량 변경 -->
+	<update id="pkgInCntUpdate" parameterType="map">
+		UPDATE TB_PKG SET
+			  IN_CNT = #{inCnt}
+			, UPDATE_ID = #{sBox.userId}
+			, UPDATE_DT = GETDATE()
+			, IN_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND PKG_CD = #{pkgCd}
+	</update>
+
+	<!-- 하차검수 출고회수차이여부 변경 -->
+	<update id="inoutDifYnUpdate" parameterType="map">
+		WITH T1 AS (
+			SELECT
+				  SHIP_NO
+				, PKG_CD
+				, OUT_CNT
+				, IN_CNT
+			FROM TB_PKG WITH(NOLOCK)
+			WHERE SHIP_NO = #{shipNo}
+			AND PKG_CD = #{pkgCd}
+		),
+		T2 AS (
+			SELECT
+				  SHIP_NO
+				, PKG_CD
+				, SUM(SAP_OUT_CNT) AS SAP_OUT_CNT
+				, SUM(ISNULL(OUT_CNT, 0)) AS AGENT_OUT_CNT
+				, SUM(ISNULL(IN_CNT, 0)) AS AGENT_IN_CNT
+			FROM TB_PKG_AGENT
+			WHERE SHIP_NO = #{shipNo}
+			AND PKG_CD = #{pkgCd}
+			GROUP BY SHIP_NO, PKG_CD
+		)
+		UPDATE A SET
+			A.INOUT_DIF_YN = B.DIF_YN
+		FROM TB_PKG A
+		INNER JOIN (
+			SELECT
+				  A.SHIP_NO
+				, A.PKG_CD
+				, IIF(IIF(C.ETC1 = 'P', A.OUT_CNT, B.SAP_OUT_CNT) - B.AGENT_OUT_CNT + B.AGENT_IN_CNT - A.IN_CNT = 0, 'N', 'Y') AS DIF_YN
+			FROM T1 A
+			INNER JOIN T2 B
+				ON B.SHIP_NO = A.SHIP_NO
+				AND B.PKG_CD = A.PKG_CD
+			INNER JOIN TB_CD C
+				ON C.GRP_CD = 'PKG_CD'
+				AND C.USE_YN = 'Y'
+				AND C.CD = A.PKG_CD
+		) B
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.PKG_CD = A.PKG_CD
+		WHERE A.SHIP_NO = #{shipNo}
+		AND A.PKG_CD = #{pkgCd}
+	</update>
+
+	<!-- 하차검수완료여부 변경 -->
+	<update id="unloadChkYnUpdate" parameterType="map">
+		UPDATE TB_DELI SET
+			UNLOAD_CHK_YN = #{unloadChkYn}
+		WHERE SHIP_NO = #{shipNo}
+	</update>
+
+	<!-- ############################################################################################################ -->
+
+	<sql id="infoSrch">
+		<where>
+			AND A.SHIP_REQ_DATE >= CAST(GETDATE() - 7 AS DATE)
+			AND A.CAR_ID = #{carId}
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI AA WITH(NOLOCK)
+				INNER JOIN TB_DELI_DTL BB WITH(NOLOCK)
+					ON BB.SHIP_NO = AA.SHIP_NO
+				WHERE AA.SHIP_NO = A.SHIP_NO
+				AND (
+					(BB.BIZ_CD = 'D' AND (BB.OUT_CNT_IF_STAT IS NULL OR BB.OUT_CNT_IF_STAT = 'R' OR BB.IN_CNT_IF_STAT IS NULL OR BB.IN_CNT_IF_STAT = 'R'))
+					OR (BB.BIZ_CD = 'T' AND AA.DELI_YN = 'N')
+				)
+			)
+		</where>
+	</sql>
+
+	<!-- 납품정보수신 총갯수-->
+	<select id="infoCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		<include refid="infoSrch" />
+	</select>
+
+	<!-- 납품정보수신 조회-->
+	<select id="infoList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			  ROW_NUMBER() OVER(ORDER BY A.SHIP_REQ_DATE DESC, A.SHIP_NO DESC) AS RNUM
+			, A.SHIP_NO
+			, A.SHIP_REQ_DATE
+			, A.CAR_ID
+		    , C.BIZ_CD
+			, IIF(A.CENTER_RDY_DT IS NULL, 'N', 'Y') AS CENTER_RDY_DT
+			, CASE
+				WHEN A.DELI_YN = 'Y' THEN '납품완료'
+				WHEN B.SHIP_NO IS NULL THEN IIF(A.CENTER_RDY_DT IS NOT NULL, '공장 출발 대기', NULL)
+				WHEN B.ZONE_TYPE = '1'
+			  		THEN CASE
+						WHEN B.EVT_FLAG = '3' THEN '납품중'
+						WHEN A.CENTER_RDY_DT IS NOT NULL AND B.EVT_FLAG = '2' THEN '공장 출발 대기'
+					END
+				ELSE '납품중'
+			  END AS DELI_STAT
+		FROM TB_DELI A WITH(NOLOCK)
+		LEFT OUTER JOIN (
+			SELECT
+				  ROW_NUMBER() OVER(PARTITION BY AA.SHIP_NO ORDER BY AA.DEV_DT DESC) AS RNUM
+				, AA.SHIP_NO
+				, AA.ZONE_FLAG
+				, AA.EVT_FLAG
+				, AA.ZONE_TYPE
+			FROM TB_CAR_ZONE_IO AA WITH(NOLOCK)
+			WHERE AA.DEV_DT IS NOT NULL
+			AND AA.SHIP_REQ_DATE >= CAST(GETDATE() - 7 AS DATE)
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI_DTL BB WITH(NOLOCK)
+				WHERE BB.SHIP_NO = AA.SHIP_NO
+				<!-- AND BB.BIZ_CD = 'D' -->
+			)
+			AND AA.CAR_ID = #{carId}
+		) B
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.RNUM = 1
+		OUTER APPLY (
+			SELECT MAX(AA.BIZ_CD) AS BIZ_CD
+			FROM TB_DELI_DTL AA WITH(NOLOCK)
+		    WHERE AA.SHIP_NO = A.SHIP_NO
+		) C
+		<include refid="infoSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+
+	<!-- 납품정보 -->
+	<select id="infoOne" parameterType="map" resultType="box">
+		SELECT
+			  A.SHIP_NO
+			, A.SHIP_REQ_DATE
+			, A.CAR_ID
+			, IIF(A.CENTER_RDY_DT IS NULL, 'N', 'Y') AS CENTER_RDY_YN
+			, A.DELI_YN
+			, A.DELIY_DIV
+			, ISNULL(B.ARR_CNT, 0) AS ARR_CNT
+			, B.ARR_EXPECT_CNT
+			, CASE
+				WHEN B.ARR_EXPECT_CNT > 0 AND B.ARR_EXPECT_CNT = B.ARR_CNT AND C.ARR_DT IS NOT NULL THEN 'Y'
+				WHEN B.IO_CNT_IF_YN = 'Y' AND C.ARR_DT IS NOT NULL THEN 'Y'
+				ELSE 'N'
+			  END AS CENTER_RTN_YN
+			, B.LINK_SHIP_NO
+			, D.REF_SHIP_NO_YN
+			, E.EXPECT_LINK_SHIP_NO
+			, B.IO_SAVE_CNT
+			, CASE
+				WHEN B.FIRST_ARR_DT IS NULL AND B.IO_SAVE_FIRST_DT IS NOT NULL
+					THEN 'N'
+				WHEN B.FIRST_ARR_DT IS NOT NULL AND B.IO_SAVE_FIRST_DT IS NOT NULL
+					THEN IIF(B.FIRST_ARR_DT > B.IO_SAVE_FIRST_DT, 'N', 'Y')
+			  END AS IO_SAVE_AFTER_ARR_YN
+		FROM TB_DELI A WITH(NOLOCK)
+		LEFT OUTER JOIN (
+			SELECT
+				  AA.SHIP_NO
+				, COUNT(*) AS ARR_EXPECT_CNT
+				, SUM(IIF(BB.ARR_DT IS NULL, 0, 1)) AS ARR_CNT
+				, MAX(BB.LINK_SHIP_NO) AS LINK_SHIP_NO
+				, SUM(IIF(AA.IO_SAVE_YN = 'Y', 1, 0)) AS IO_SAVE_CNT
+				, MIN(BB.ARR_DT) AS FIRST_ARR_DT
+				, MIN(AA.IO_SAVE_FIRST_DT) AS IO_SAVE_FIRST_DT
+				, CASE
+					WHEN SUM(IIF(AA.OUT_CNT_IF_STAT IN ('Y', 'N'), 1, 0)) + SUM(IIF(AA.IN_CNT_IF_STAT IN ('Y', 'N'), 1, 0)) > 0 THEN 'Y'
+					ELSE 'N'
+				  END
+					AS IO_CNT_IF_YN
+				, MAX(AA.BIZ_CD) AS BIZ_CD
+			FROM TB_DELI_DTL AA WITH(NOLOCK)
+			INNER JOIN TB_CAR_ZONE_IO BB WITH(NOLOCK)
+				ON BB.SHIP_NO = AA.SHIP_NO
+				AND BB.AGENT_CD = AA.AGENT_CD
+				AND BB.DELI_NO = AA.DELI_NO
+				AND BB.ZONE_TYPE = '2'
+			WHERE AA.SHIP_NO = #{shipNo}
+			<!-- AND AA.BIZ_CD = 'D' -->
+			GROUP BY AA.SHIP_NO
+		) B
+			ON B.SHIP_NO = A.SHIP_NO
+		LEFT OUTER JOIN TB_CAR_ZONE_IO C WITH(NOLOCK)
+			ON C.SHIP_NO = A.SHIP_NO
+			AND C.ZONE_TYPE = '3'
+		OUTER APPLY (
+			SELECT
+				IIF(COUNT(*) > 0, 'Y', 'N') AS REF_SHIP_NO_YN
+			FROM TB_CAR_ZONE_IO AA WITH(NOLOCK)
+			WHERE LINK_SHIP_NO = #{shipNo}
+		) D
+		OUTER APPLY (
+			SELECT IIF(X.SHIP_NO = #{shipNo}, NULL, SHIP_NO) AS EXPECT_LINK_SHIP_NO
+			FROM (
+				SELECT TOP 1 FIRST_VALUE(AA.SHIP_NO) OVER(ORDER BY AA.CENTER_RDY_DT) AS SHIP_NO
+				FROM TB_DELI AA WITH(NOLOCK)
+				INNER JOIN TB_DELI_DTL CC WITH(NOLOCK)
+					ON CC.SHIP_NO = AA.SHIP_NO
+					<!-- AND CC.BIZ_CD = 'D' -->
+				INNER JOIN TB_CAR_ZONE_IO DD WITH(NOLOCK)
+					ON DD.SHIP_NO = CC.SHIP_NO
+					AND DD.AGENT_CD = CC.AGENT_CD
+					AND DD.DELI_NO = CC.DELI_NO
+					AND DD.ZONE_TYPE = '2'
+					AND DD.ARR_DT IS NULL
+					AND DD.LINK_SHIP_NO IS NULL
+				WHERE AA.CAR_ID = #{carId}
+				AND DATEDIFF(DAY, AA.CENTER_RDY_DT, GETDATE()) = 0
+				AND (
+				    (CC.BIZ_CD = 'D' AND (CC.OUT_CNT_IF_STAT IS NULL OR CC.OUT_CNT_IF_STAT = 'R' OR CC.IN_CNT_IF_STAT IS NULL OR CC.IN_CNT_IF_STAT = 'R'))
+				    OR (CC.BIZ_CD = 'T' AND AA.DELI_YN = 'N')
+				)
+			) X
+		) E
+		WHERE A.SHIP_NO = #{shipNo}
+	</select>
+
+	<!-- ############################################################################################################ -->
+
+	<select id="infoAgentView" parameterType="map" resultType="box">
+		SELECT
+			  AA.SHIP_NO
+			, MAX(AA.BIZ_CD) AS BIZ_CD
+		FROM TB_DELI_DTL AA WITH(NOLOCK)
+		WHERE AA.SHIP_NO = #{shipNo}
+		GROUP BY AA.SHIP_NO
+	</select>
+
+	<!-- 납품정보수신 대리점 조회-->
+	<select id="infoAgentList" parameterType="map" resultType="box">
+		SELECT
+			  ROW_NUMBER() OVER(ORDER BY B.AGENT_CD, B.DELI_NO) AS RNUM
+			, A.SHIP_NO
+			, A.CAR_ID
+			, B.AGENT_CD
+			, B.AGENT_NM
+			, B.DELI_NO
+			, CONVERT(VARCHAR(5), C.ARR_EXPECT_DT, 108) AS ARR_EXPECT_DT
+			, B.IO_SAVE_RDY_YN
+			, IIF(C.ARR_DT IS NULL, 'N', 'Y') AS ARR_YN
+			, CONVERT(VARCHAR(5), C.ARR_DT, 108) AS ARR_TM
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			<!-- AND B.BIZ_CD = 'D' -->
+		INNER JOIN TB_CAR_ZONE_IO C WITH(NOLOCK)
+			ON C.SHIP_NO = B.SHIP_NO
+			AND C.AGENT_CD = B.AGENT_CD
+			AND C.DELI_NO = B.DELI_NO
+		<where>
+			AND A.SHIP_NO = #{shipNo}
+		</where>
+	</select>
+
+	<!--  -->
+	<select id="infoAgentOne" parameterType="map" resultType="box">
+		SELECT
+			  A.IO_SAVE_RDY_YN
+			, A.IO_SAVE_YN
+		FROM TB_DELI_DTL A WITH(NOLOCK)
+		WHERE A.SHIP_NO = #{shipNo}
+ 		AND A.AGENT_CD = #{agentCd}
+ 		AND A.DELI_NO = #{deliNo}
+	</select>
+
+	<!-- 센터출발대기일시 입력 -->
+	<update id="centerRdyDtUpdate" parameterType="map">
+		UPDATE TB_DELI SET
+		<if test='rdyYn == "Y"'>
+			  CENTER_RDY_DT = GETDATE()
+		</if>
+		<if test='rdyYn == "N"'>
+			  CENTER_RDY_DT = NULL
+		</if>
+			, UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND CAR_ID = #{carId}
+	</update>
+
+	<!-- 연계배송 선적번호 변경 -->
+	<update id="linkShipNoUpdate" parameterType="map">
+		UPDATE TB_CAR_ZONE_IO SET
+		<choose>
+			<when test='linkShipNo != null and linkShipNo != ""'>
+				LINK_SHIP_NO = #{linkShipNo}
+			</when>
+			<otherwise>
+				LINK_SHIP_NO = NULL
+			</otherwise>
+		</choose>
+		WHERE SHIP_NO = #{shipNo}
+	</update>
+
+	<!-- 배송완료여부 변경 -->
+	<update id="deliYnUpdate" parameterType="map">
+		UPDATE TB_DELI SET
+			  DELI_YN = #{deliYn}
+		<if test='deliYn != null and deliYn != ""'>
+			<choose>
+				<when test='deliYn == "Y"'>
+					<!-- , DELIY_DT = GETDATE() -->
+		            , DELIY_DT = (
+		                SELECT
+							MAX(XX.DEV_DT) AS DEV_DT
+						FROM TB_CAR_HIST XX WITH(NOLOCK)
+						WHERE XX.CAR_ID = TB_DELI.CAR_ID
+						AND DATEDIFF(DAY, XX.DEV_DT, GETDATE()) = 0
+						AND XX.LOG_DIV = 'D'
+					)
+					, DELIY_DIV = '2'
+				</when>
+				<otherwise>
+					, DELIY_DT = NULL
+					, DELIY_DIV = NULL
+				</otherwise>
+			</choose>
+		</if>
+			, UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND CAR_ID = #{carId}
+	</update>
+
+	<!-- 출고회수수량저장준비여부 변경 -->
+	<update id="ioSaveRdyYnUpdate" parameterType="map">
+		UPDATE TB_DELI_DTL SET
+			  IO_SAVE_RDY_YN = #{ioSaveRdyYn}
+			, UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+ 		AND AGENT_CD = #{agentCd}
+ 		AND DELI_NO = #{deliNo}
+	</update>
+
+	<!-- ############################################################################################################ -->
+
+	<select id="infoView" parameterType="map" resultType="box">
+		WITH T1 AS (
+			SELECT
+				  A.SHIP_NO
+				, SUM(A.OUT_CNT) - SUM(ISNULL(B.OUT_CNT, 0)) AS PLT_CNT
+			FROM TB_PKG A WITH(NOLOCK)
+			INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+				ON B.SHIP_NO = A.SHIP_NO
+				AND B.PKG_CD = A.PKG_CD
+			INNER JOIN TB_CD C WITH(NOLOCK)
+				ON C.GRP_CD = 'PKG_CD'
+				AND C.ETC1 = 'P'
+				AND C.CD = A.PKG_CD
+			WHERE A.SHIP_NO = #{shipNo}
+			GROUP BY A.SHIP_NO
+		)
+		, T2 AS (
+			SELECT
+				  A.SHIP_NO
+				, SUM(IIF(A.DELI_NO != #{deliNo} AND A.IO_SAVE_YN = 'Y', 1 , 0)) AS IO_SAVE_COMP_CNT
+				, COUNT(*) AS IO_SAVE_PLAN_CNT
+			FROM TB_DELI_DTL A WITH(NOLOCK)
+			WHERE A.SHIP_NO = #{shipNo}
+			AND A.BIZ_CD = 'D'
+			GROUP BY A.SHIP_NO
+		)
+		SELECT
+			  A.SHIP_NO
+			, B.CAR_ID
+			, A.AGENT_CD
+			, A.AGENT_NM
+			, A.DELI_NO
+			, A.IO_SAVE_RDY_YN
+			, A.IO_SAVE_YN
+			, C.PLT_CNT
+			, A.OUT_CNT_IF_STAT
+			, A.IN_CNT_IF_STAT
+			, D.IO_SAVE_PLAN_CNT
+    		, D.IO_SAVE_COMP_CNT
+			, IIF(A.IO_SAVE_YN = 'N' AND D.IO_SAVE_PLAN_CNT = D.IO_SAVE_COMP_CNT + 1, 'Y', 'N') AS LAST_IO_SAVE_YN
+		FROM TB_DELI_DTL A WITH(NOLOCK)
+		INNER JOIN TB_DELI B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.CAR_ID = #{carId}
+		INNER JOIN T1 C
+			ON C.SHIP_NO = A.SHIP_NO
+		INNER JOIN T2 D
+    		ON D.SHIP_NO = B.SHIP_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		AND A.AGENT_CD = #{agentCd}
+		AND A.DELI_NO = #{deliNo}
+	</select>
+
+	<select id="infoDtlList" parameterType="map" resultType="box">
+		SELECT
+			  A.SHIP_NO
+			, B.PKG_CD
+			, B.AGENT_CD
+			, B.DELI_NO
+			, C.CD_NM AS PKG_NM
+			, B.SAP_OUT_CNT
+			, IIF(D.IO_SAVE_YN = 'Y', ISNULL(B.OUT_CNT, 0), B.SAP_OUT_CNT) AS OUT_CNT
+			, ISNULL(B.IN_CNT, 0) AS IN_CNT
+		FROM TB_PKG A WITH(NOLOCK)
+		INNER JOIN TB_PKG_AGENT B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.PKG_CD = A.PKG_CD
+		INNER JOIN TB_CD C WITH(NOLOCK)
+			ON C.GRP_CD = 'PKG_CD'
+			AND C.CD = B.PKG_CD
+		INNER JOIN TB_DELI_DTL D WITH(NOLOCK)
+			ON D.SHIP_NO = B.SHIP_NO
+			AND D.AGENT_CD = B.AGENT_CD
+			AND D.DELI_NO = B.DELI_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		AND B.AGENT_CD = #{agentCd}
+		AND B.DELI_NO = #{deliNo}
+	</select>
+
+	<!-- 하차, 회수 수량 저장 -->
+	<update id="agentInOutCntUpdate" parameterType="map">
+		UPDATE A SET
+			  A.OUT_CNT = #{outCnt}
+			, A.IN_CNT = #{inCnt}
+			, A.UPDATE_DT = GETDATE()
+			, A.UPDATE_ID = #{sBox.userId}
+		FROM TB_PKG_AGENT A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.AGENT_CD = A.AGENT_CD
+			AND B.DELI_NO = A.DELI_NO
+		WHERE A.SHIP_NO = #{shipNo}
+		AND A.PKG_CD = #{pkgCd}
+		AND A.AGENT_CD = #{agentCd}
+		AND A.DELI_NO = #{deliNo}
+	</update>
+
+	<!-- 출고회수수량저장여부 변경 -->
+	<update id="ioSaveYnUpdate" parameterType="map">
+		UPDATE TB_DELI_DTL SET
+			  IO_SAVE_YN = 'Y'
+			, IO_SAVE_FIRST_DT = IIF(IO_SAVE_YN = 'Y', IO_SAVE_FIRST_DT, GETDATE())
+			, UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+		WHERE SHIP_NO = #{shipNo}
+		AND AGENT_CD = #{agentCd}
+		AND DELI_NO = #{deliNo}
+	</update>
+
+	<!--  -->
+	<select id="ioSaveCntOne" parameterType="map" resultType="box">
+		SELECT
+			  COUNT(*) AS DELI_CNT
+			, SUM(IIF(B.IO_SAVE_YN = 'Y', 1, 0)) AS IO_SAVE_CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		INNER JOIN TB_DELI_DTL B WITH(NOLOCK)
+			ON B.SHIP_NO = A.SHIP_NO
+			AND B.BIZ_CD = 'D'
+		WHERE A.SHIP_NO = #{shipNo}
+	</select>
+
+	<!-- ############################################################################################################ -->
+
+	<sql id="deliSrch">
+		<where>
+			AND A.SHIP_REQ_DATE &lt;= CAST(GETDATE() + 7 AS DATE)
+			AND A.SHIP_REQ_DATE >= CAST(GETDATE() - 7 AS DATE)
+			AND A.CAR_ID = #{carId}
+			AND EXISTS (
+				SELECT 1
+				FROM TB_DELI AA WITH(NOLOCK)
+				INNER JOIN TB_DELI_DTL BB WITH(NOLOCK)
+					ON BB.SHIP_NO = AA.SHIP_NO
+				WHERE AA.SHIP_NO = A.SHIP_NO
+				AND (
+					(BB.BIZ_CD = 'D' AND BB.OUT_CNT_IF_STAT IN ('Y', 'N') OR BB.IN_CNT_IF_STAT IN ('Y', 'N'))
+					OR (BB.BIZ_CD = 'T' AND AA.DELI_YN = 'Y')
+				)
+			)
+		</where>
+	</sql>
+
+	<!-- 납품정보수신 총갯수-->
+	<select id="deliCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		FROM TB_DELI A WITH(NOLOCK)
+		<include refid="deliSrch" />
+	</select>
+
+	<!-- 납품정보수신 조회-->
+	<select id="deliList" parameterType="map" resultType="box">
+		<include refid="cmn.pageStr" />
+		SELECT
+			<choose>
+				<when test='sortColumn != null and sortColumn != ""'>
+					ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) AS RNUM
+				</when>
+				<otherwise>
+					ROW_NUMBER() OVER(ORDER BY A.SHIP_REQ_DATE DESC, A.SHIP_NO DESC) AS RNUM
+				</otherwise>
+			</choose>
+			, A.SHIP_NO
+			, A.SHIP_REQ_DATE
+			, A.CAR_ID
+		    , B.BIZ_CD
+			, CASE A.DELIY_DIV
+				WHEN '1' THEN '마감'
+				WHEN '2' THEN '마감'
+				WHEN '3' THEN '강제'
+				ELSE '-'
+			  END AS DELIY_DIV_TXT
+		FROM TB_DELI A WITH(NOLOCK)
+		OUTER APPLY (
+			SELECT MAX(AA.BIZ_CD) AS BIZ_CD
+			FROM TB_DELI_DTL AA WITH(NOLOCK)
+		    WHERE AA.SHIP_NO = A.SHIP_NO
+		) B
+		<include refid="deliSrch" />
+		<include refid="cmn.pageEnd" />
+	</select>
+</mapper>

@@ -1,0 +1,96 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE properties SYSTEM "http://java.sun.com/dtd/properties.dtd">
+<properties>
+	<comment>configuration properties</comment>
+
+	<!-- page unit -->
+	<entry key="paginate.pageUnit">20</entry>
+	<!-- page size -->
+	<entry key="paginate.pageSize">10</entry>
+	<!-- excel down 최대 허용 row 수 -->
+	<entry key="excel.max.row">10000</entry>
+
+	<!-- 공용jss reload여부 -->
+	<entry key="reload.yn">N</entry>
+
+	<!-- Server -->
+	<entry key="server.system.name">MAEIL_TEST01</entry>
+	<entry key="server.host.ip">192.168.140.79</entry>
+<!-- 	<entry key="server.host.name">cvo.mail.com</entry> -->
+	<entry key="server.host.name">192.168.140.79</entry>
+	<entry key="server.host.url">http://192.168.140.79:7090</entry>
+	<entry key="server.mode">LOCAL</entry><!-- LOCAL: 로컬PC, TEST: 테스트서버, REAL: 운영서버 -->
+
+	<!-- Session Configuration -->
+	<entry key="session.timeout">300</entry>
+	<entry key="session.timeout.manual">Y</entry>
+
+	<!-- LOG 출력 -->
+	<entry key="log.except.url">/manage/set/noticeView.json,/manage/set/qnaView.json,/manage/set/alarmHistList.json</entry><!-- Result JSON 출력 제외 URL -->
+	<entry key="log.list.nm">list,list1,list2,list3,list4,list5</entry><!-- Result JSON 출력대상 model의 list명 -->
+	<entry key="log.max.cnt">100</entry><!-- 로그출력 허용최대 row수 -->
+	<entry key="log.except.method">CmnController.centerList,CmnController.msgList,CmnController.cdList,MainController.sessionInfo</entry><!-- Controller 출력 제외 Method -->
+	<entry key="aspect.log">BEFORE</entry><!-- 로그출력 방법 : BEFORE, AFTER, BOTH -->
+
+	<!-- 암호화 키(encrypt key) -->
+	<entry key="aes.encrypt.key">maeiltestkey1234</entry>
+	<!-- 암호화방식 : AES128 / AES256 -->
+	<entry key="aes.encrypt.type">256</entry>
+
+	<!-- os 선택 : window / unix -->
+<!-- 	<entry key="os">window</entry> -->
+
+	<!-- 저장소 경로 -->
+	<entry key="thumb.path">/upload/img/thumb/</entry><!-- 썸네일 -->
+	<entry key="img.path">/upload/img/</entry><!-- 이미지-->
+	<entry key="file.path">/upload/files/</entry><!-- 첨부파일 -->
+	<entry key="excel.path">/upload/excel/</entry><!-- 대용량엑셀파일 -->
+
+	<!-- 허용가능 확장자 -->
+	<entry key="img.ext">jpg,gif,png</entry><!-- 이미지-->
+	<entry key="file.ext">xls,xlsx,ppt,pptx,doc,docx,hwp,zip,log,sql,csv,txt,pdf</entry><!-- 첨부파일 -->
+
+	<!-- 첨부가능 파일수 -->
+	<entry key="img.max.cnt">10</entry><!-- 이미지-->
+	<entry key="file.max.cnt">5</entry><!-- 첨부파일 -->
+	<!-- 첨부가능 용량 -->
+	<entry key="img.max.size">5000000</entry><!-- 이미지-->
+	<entry key="file.max.size">10000000</entry><!-- 첨부파일 -->
+
+	<!-- 에디터 본문 허용글자수 -->
+	<entry key="edit.max.cnt">10000000</entry>
+
+	<!-- 썸네일 생성 여부 -->
+	<entry key="thumb.yn">N</entry>
+
+	<!-- 다음지도 map key -->
+	<entry key="daum.map.appkey">7668dd4205aeb7bf6fe8f9f32f380ec9</entry>
+
+	<!-- 스케쥴 배치 환경변수 -->
+	<entry key="scheduled.yn">N</entry><!-- 스케쥴 수행여부 -->
+	<entry key="scheduled.server.ip">192.168.0.74</entry><!-- 스케쥴이 수행될 머신의 ip -->
+	<entry key="scheduled.was.instanceId"></entry><!-- 스케쥴이 수행될 머신의 인스턴스id : 운영서버만 사용 -->
+
+	<entry key="scheduled.file.clean.cron">0 30 0 * * ?</entry><!-- 첨부파일 정리 주기 (매일 0시 30분)-->
+	<entry key="scheduled.raw.delete.cron">0 40 0 * * ?</entry><!-- RAW 데이터 삭제 주기 (매일 0시 40분)-->
+	<entry key="scheduled.noreg.delete.cron">0 50 0 * * ?</entry><!-- 미등록 차량/대리점 데이터 삭제 주기 (매일 새벽 0시 50분)-->
+	<entry key="scheduled.raw.delete.term.day">31</entry><!-- RAW 데이터 삭제일 (31일전) -->
+
+	<entry key="scheduled.cargoStat.insert.cron">0 20 2 * * ?</entry><!-- 창고통계 등록 주기 (매일 2시 20분)-->
+	<entry key="scheduled.cargoStat.insert.days.ago">3</entry><!-- 창고통계 등록 X일 전부터 다시 집계 -->
+
+	<entry key="scheduled.carStat.insert.cron">0 30 2 * * ?</entry><!-- 차량통계 등록 주기 (매일 2시 30분)-->
+	<entry key="scheduled.carStat.insert.days.ago">3</entry><!-- 차량통계 등록 X일 전부터 다시 집계 -->
+
+	<entry key="scheduled.pkgAnal.insert.cron">0 40 2 * * ?</entry><!-- 포장재출고회수통계 등록 주기 (매일 2시 40분)-->
+
+	<entry key="scheduled.sapIfIoCnt.send.cron">0 5 0 * * ?</entry><!-- SAP IF 하차, 회수 수량 전송 (매일 0시 5분)-->
+
+	<entry key="scheduled.deliy.update.cron">0 0 22 * * ?</entry><!-- 배송완료 처리 (매일 22시)-->
+
+	<entry key="scheduled.csv.make.car.cron">0 10 0 * * MON</entry><!-- 차량 대용량 엑셀 파일 생성 (매주 월요일 새벽 0시 10분)-->
+	<entry key="scheduled.csv.make.cargo.cron">0 0 1 1 * ?</entry><!-- 창고 대용량 엑셀 파일 생성 (매월 1일 새벽 1시)-->
+
+	<entry key="sap.gw.ip">112.169.88.14</entry><!-- sap 게이트웨이 ip -->
+	<entry key="sap.gw.port">9001</entry><!--  sap 게이트웨이 port -->
+</properties>

@@ -1,0 +1,18 @@
+@CHARSET "UTF-8";
+.ui-datepicker-trigger {margin:0 0 0 4px;cursor:pointer;}
+.ui-datepicker {width:18em;}
+.ui-datepicker select.ui-datepicker-year{width:36%;}
+.ui-datepicker select.ui-datepicker-month{width:34%;}
+.ui-datepicker .ui-datepicker-prev,.ui-datepicker .ui-datepicker-next{top:6px;cursor:pointer;}
+.ui-datepicker .ui-state-default{color:#454545;}
+.date-sunday   .ui-state-default { color: red  !important; }
+.date-saturday .ui-state-default { color: blue !important; }
+.date-holiday  .ui-state-default { color: red  !important; }
+
+.ui-dialog{background:#fff;padding:0;border:1px solid #999;border-radius:0;}
+.ui-dialog .ui-dialog-titlebar{background:#4a4e5d;border:0;border-radius:0;}
+.ui-dialog .ui-dialog-title{color:#fff;padding:8px 0;font-size:16px;}
+.ui-dialog .ui-dialog-titlebar-close{top:1.2em;right:0.6em;height:32px;width:32px;}
+.ui-dialog .ui-widget-header .ui-state-default{background:url('../image/btn/btn_popup_close.png') no-repeat center center transparent;border:0;}
+.ui-dialog .ui-widget-header .ui-state-default .ui-icon{background:none !important;}
+.ui-dialog .ui-dialog-content{padding:1.2em 1.2em;}

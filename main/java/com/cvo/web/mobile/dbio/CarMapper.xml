@@ -1,0 +1,216 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="car">
+
+	<select id="cdCarList" parameterType="map" resultType="box">
+		SELECT
+			  CAR_ID AS CD
+			, CAR_NO AS NM
+		FROM TB_CAR WITH(NOLOCK)
+		WHERE USE_YN = 'Y'
+		AND AGENT_CD = #{sBox.agentCd}
+	</select>
+
+	<select id="carPickerCarList" parameterType="map" resultType="box">
+		SELECT
+			  CAR_ID
+			, CAR_NO
+			, DRV_NM
+			, CENTER_CD
+		FROM TB_CAR WITH(NOLOCK)
+		<where>
+			AND USE_YN = 'Y'
+			<choose>
+				<when test='sBox != null and sBox.mAuthCd != null and sBox.mAuthCd != ""'>
+					<if test='sBox.mAuthCd == "3" or sBox.mAuthCd == "6"'>
+						AND 1 = 2
+					</if>
+					<if test='sBox.mAuthCd == "5"'>
+						AND A.CENTER_CD = #{sBox.centerCd}
+					</if>
+				</when>
+				<otherwise>
+					AND 1 = 2
+				</otherwise>
+			</choose>
+		</where>
+	</select>
+
+	<!-- 실시간차량온도 검색조건 -->
+	<sql id="tempNowSrch">
+		<where>
+			AND A.LOG_DIV = 'D'
+			AND DATEDIFF(DAY, A.DEV_DT, GETDATE()) = 0
+			AND B.CENTER_CD = #{srchCenterCd}
+			<if test='srchWord != null and srchWord != ""'>
+				AND (B.DRV_NM LIKE '%' + #{srchWord} + '%' OR B.CAR_NO LIKE '%' + #{srchWord} + '%')
+				<!--<if test='srchMethod == "drvNm"'>
+					AND B.DRV_NM LIKE '%' + #{srchWord} + '%'
+				</if>
+				<if test='srchMethod == "carNo"'>
+					AND B.CAR_NO LIKE '%' + #{srchWord} + '%'
+				</if>-->
+			</if>
+		</where>
+	</sql>
+
+	<!-- 실시간차량온도 조회 -->
+	<select id="tempNowList" parameterType="map" resultType="box">
+		SELECT
+			  ROW_NUMBER() OVER(ORDER BY A.DEV_DT) AS RNUM
+			, B.CAR_NO
+			, A.DEV_DT
+			, CASE
+				  WHEN B.CH_CNT = 1 THEN CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR)
+				  WHEN B.CH_CNT = 2 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+				  WHEN B.CH_CNT = 3 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH3 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+				  WHEN B.CH_CNT = 4 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH3 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH4 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+			  END AS CH
+		FROM TB_CAR_HIST A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		<include refid="tempNowSrch"/>
+	</select>
+
+	<!-- 온도내역 조회 -->
+	<select id="tempList" parameterType="map" resultType="box">
+		DECLARE @CAR_ID VARCHAR(5);
+		<if test='srchCarNo != null and srchCarNo !=""'>
+			SELECT @CAR_ID = X.CAR_ID FROM TB_CAR X WITH(NOLOCK) WHERE X.CAR_NO LIKE '%' + #{srchCarNo} + '%';
+		</if>
+		<if test='srchCarId != null and srchCarId !=""'>
+			SET @CAR_ID = #{srchCarId};
+		</if>
+		WITH T1 AS (
+			SELECT
+				A.CAR_ID,
+				B.SHIP_NO,
+				CASE
+					WHEN C.ZONE_TYPE = '1' THEN C.START_DT
+					WHEN C.ZONE_TYPE = '2' THEN C.ARR_DT
+				END AS ZONE_DEV_DT,
+				CASE
+					WHEN C.ZONE_TYPE = '1' THEN 13
+					WHEN C.ZONE_TYPE = '2' THEN 22
+				END AS ZONE_DEV_DT_DIV
+			FROM TB_CAR A WITH(NOLOCK)
+			INNER JOIN TB_DELI B WITH(NOLOCK)
+				ON B.CAR_ID = A.CAR_ID
+			INNER JOIN TB_CAR_ZONE_IO C WITH(NOLOCK)
+				ON C.SHIP_NO = B.SHIP_NO
+			WHERE 1 = 1
+			AND A.USE_YN = 'Y'
+			AND A.CENTER_CD IS NOT NULL
+			AND C.CAR_ID = @CAR_ID
+			AND (
+				(C.ZONE_TYPE = '1' AND DATEDIFF(DAY, #{srchDt}, C.START_DT) = 0)
+				OR (C.ZONE_TYPE = '2' AND DATEDIFF(DAY, #{srchDt}, C.ARR_DT) = 0)
+			)
+			AND C.ARR_DT NOT IN (
+				SELECT MAX(AA.ARR_DT)
+				FROM TB_CAR_ZONE_IO AA WITH(NOLOCK)
+				WHERE AA.SHIP_NO = C.SHIP_NO
+				AND AA.ZONE_TYPE = '2'
+				GROUP BY AA.SHIP_NO
+			)
+
+			UNION ALL
+			SELECT
+				A.CAR_ID,
+				B.SHIP_NO,
+				CASE
+					WHEN DATEDIFF(DAY, GETDATE(), #{srchDt}) = 0 AND B.DELI_YN = 'N' THEN D.LAST_DEV_DT
+					WHEN MAX(C.ARR_DT) >= ISNULL(B.DELIY_DT, CAST(0 AS DATETIME)) THEN MAX(C.ARR_DT)
+					ELSE B.DELIY_DT
+				END AS ZONE_DEV_DT,
+				CASE
+					WHEN DATEDIFF(DAY, GETDATE(), #{srchDt}) = 0 AND B.DELI_YN = 'N' THEN 55
+					WHEN MAX(C.ARR_DT) >= ISNULL(B.DELIY_DT, CAST(0 AS DATETIME)) THEN 22
+					ELSE 44
+				END AS ZONE_DEV_DT_DIV
+			FROM TB_CAR A WITH(NOLOCK)
+			INNER JOIN TB_DELI B WITH(NOLOCK)
+				ON B.CAR_ID = A.CAR_ID
+			INNER JOIN TB_CAR_ZONE_IO C WITH(NOLOCK)
+				ON C.SHIP_NO = B.SHIP_NO
+			CROSS APPLY (
+				SELECT MAX(DD.DEV_DT) AS LAST_DEV_DT
+				FROM TB_CAR_HIST DD WITH(NOLOCK)
+				WHERE DD.LOG_DIV = 'D'
+				AND DD.CAR_ID = C.CAR_ID
+				AND DATEDIFF(DAY, DD.DEV_DT, CAST(#{srchDt} AS DATE)) = 0
+			) D
+			WHERE 1 = 1
+			AND A.USE_YN = 'Y'
+			AND A.CENTER_CD IS NOT NULL
+			AND C.CAR_ID = @CAR_ID
+			AND (
+				(C.ZONE_TYPE = '2' AND DATEDIFF(DAY, #{srchDt}, C.ARR_DT) = 0)
+			)
+			GROUP BY A.CAR_ID, B.SHIP_NO, B.DELIY_DT, B.DELI_YN, D.LAST_DEV_DT
+		)
+		, T2 AS (
+			SELECT
+				CAR_ID,
+				ZONE_DEV_DT,
+				LEAD(ZONE_DEV_DT) 		OVER(PARTITION BY CAR_ID, CAST(ZONE_DEV_DT AS DATE) ORDER BY ZONE_DEV_DT) AS NEXT_ZONE_DEV_DT,
+				ZONE_DEV_DT_DIV,
+				LEAD(ZONE_DEV_DT_DIV) 	OVER(PARTITION BY CAR_ID, CAST(ZONE_DEV_DT AS DATE) ORDER BY ZONE_DEV_DT) AS NEXT_ZONE_DEV_DT_DIV,
+				ROW_NUMBER() 			OVER(PARTITION BY CAR_ID, CAST(ZONE_DEV_DT AS DATE) ORDER BY ZONE_DEV_DT) AS RNUM
+			FROM T1
+		)
+		,T3 AS (
+			SELECT
+				A.CAR_ID,
+				A.ZONE_DEV_DT,
+				A.NEXT_ZONE_DEV_DT
+			FROM T2 A
+			LEFT OUTER JOIN TB_CAR_HIST B1 WITH(NOLOCK)
+				ON B1.LOG_DIV = 'D'
+				AND B1.CAR_ID = A.CAR_ID
+				AND B1.DEV_DT = A.ZONE_DEV_DT
+			LEFT OUTER JOIN TB_CAR_HIST B2 WITH(NOLOCK)
+				ON B2.LOG_DIV = 'D'
+				AND B2.CAR_ID = A.CAR_ID
+				AND B2.DEV_DT = A.NEXT_ZONE_DEV_DT
+			WHERE (
+				(ZONE_DEV_DT_DIV = 13 AND NEXT_ZONE_DEV_DT_DIV IN (22, 55))
+				OR (ZONE_DEV_DT_DIV = 22 AND NEXT_ZONE_DEV_DT_DIV IN (22, 44, 55))
+			)
+		)
+		SELECT
+			  ROW_NUMBER() OVER(ORDER BY A.DEV_DT) AS RNUM
+			, A.DEV_DT
+			, CASE
+				  WHEN B.CH_CNT = 1 THEN CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR)
+				  WHEN B.CH_CNT = 2 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+				  WHEN B.CH_CNT = 3 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH3 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+				  WHEN B.CH_CNT = 4 THEN CONCAT(ISNULL(CAST(CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH3 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'), '/', ISNULL(CAST(CAST(A.CH4 / 10.0 AS NUMERIC(4,1)) AS VARCHAR), '-'))
+			  END AS CH
+			, B.CH_CNT
+			, CAST(A.CH1 / 10.0 AS NUMERIC(4,1)) AS CH1
+			, CAST(A.CH2 / 10.0 AS NUMERIC(4,1)) AS CH2
+			, CAST(A.CH3 / 10.0 AS NUMERIC(4,1)) AS CH3
+			, CAST(A.CH4 / 10.0 AS NUMERIC(4,1)) AS CH4
+			, CASE
+				WHEN C.VIO_LONG_CNT > 0 THEN '온도위반'
+				WHEN C.VIO_CNT > 0 THEN '온도이상'
+			  END AS EVENT
+			, IIF(COUNT(*) OVER() / 5 = 0, 0 ,CAST(100 - (SUM(C.VIO_LONG_CNT) OVER() * 100.0 / (COUNT(*) OVER() / 5)) AS NUMERIC(5, 2))) AS RT
+		FROM TB_CAR_HIST A WITH(NOLOCK)
+		INNER JOIN TB_CAR B WITH(NOLOCK)
+			ON B.CAR_ID = A.CAR_ID
+		LEFT OUTER JOIN TB_CAR_TEMP_VIO C WITH(NOLOCK)
+			ON C.CAR_ID = A.CAR_ID
+			AND C.DEV_DT = A.DEV_DT
+			AND C.EVT_FLAG = '1'
+		WHERE A.LOG_DIV = 'D'
+		AND B.CAR_ID = @CAR_ID
+		AND EXISTS (
+			SELECT 1
+			FROM T3 BB
+			WHERE A.DEV_DT BETWEEN BB.ZONE_DEV_DT AND BB.NEXT_ZONE_DEV_DT
+		)
+	</select>
+
+</mapper>

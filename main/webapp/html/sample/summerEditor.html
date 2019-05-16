@@ -1,0 +1,53 @@
+<!DOCTYPE html>
+<html lang="ko">
+
+<head>
+	<meta http-equiv="X-UA-Compatible" content="IE=edge">
+	<meta charset="utf-8">
+<!-- 	<link rel="stylesheet" href="http://netdna.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.css" /> -->
+	<link rel="stylesheet" href="/cvo/resources/css/bootstrap.css" />
+	<link rel="stylesheet" href="/cvo/resources/js/summernote/summernote.css" />
+
+<!-- 	<script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/jquery/3.2.1/jquery.js" ></script> -->
+	<script type="text/javascript" src="/cvo/resources/js/naw-4.x.js"></script>
+	<script type="text/javascript" src="http://netdna.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.js"></script>
+	<script type="text/javascript" src="/cvo/resources/js/summernote/summernote.js"></script>
+	<script type="text/javascript" src="/cvo/resources/js/summernote/lang/summernote-ko-KR.js"></script>
+
+	<script>
+		$(document).ready(function() {
+			$('#edit').summernote({
+				lang: 'ko-KR',
+				placeholder: '여기에 글을 써주세요...',
+				height: 400,				 // set editor height
+// 				minHeight: null,			 // set minimum height of editor
+// 				maxHeight: null,			 // set maximum height of editor
+				focus: true
+			});
+
+// 			$('#edit').summernote('code', '시작페이지');
+			$('#edit').summernote('code', $('[name=editVal]').val());
+// 			$('#summernote').summernote('destroy');
+
+// 			$('#edit').summernote('insertText', '내용삽입');
+// 			$('#edit').summernote('undo');
+// 			$('#edit').summernote('redo');
+// 			$('#edit').summernote('disable');
+// 			$('#edit').summernote('enable');
+// 			$('#summernote').summernote('insertImage', url, filename);
+		});
+
+	</script>
+</head>
+
+<body>
+
+	<br />
+	<br />
+	<div id="edit"></div>
+	<button type="button" class="btnSend" onclick="alert($('#edit').summernote('code'));">전송</button>
+	<textarea name="editVal" style="display:none;"></textarea>
+
+
+</body>
+</html>

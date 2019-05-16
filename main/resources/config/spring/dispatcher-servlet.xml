@@ -1,0 +1,229 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<beans:beans xmlns="http://www.springframework.org/schema/beans"
+	xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+	xmlns:mvc="http://www.springframework.org/schema/mvc"
+	xmlns:beans="http://www.springframework.org/schema/beans"
+	xmlns:oxm="http://www.springframework.org/schema/oxm"
+	xmlns:context="http://www.springframework.org/schema/context"
+	xmlns:aop="http://www.springframework.org/schema/aop"
+	xmlns:util="http://www.springframework.org/schema/util"
+	xmlns:task="http://www.springframework.org/schema/task"
+	xmlns:p="http://www.springframework.org/schema/p"
+	xsi:schemaLocation="http://www.springframework.org/schema/beans http://www.springframework.org/schema/beans/spring-beans-4.3.xsd
+		http://www.springframework.org/schema/context http://www.springframework.org/schema/context/spring-context-4.3.xsd
+		http://www.springframework.org/schema/oxm http://www.springframework.org/schema/oxm/spring-oxm-4.3.xsd
+		http://www.springframework.org/schema/mvc http://www.springframework.org/schema/mvc/spring-mvc-4.3.xsd
+		http://www.springframework.org/schema/aop http://www.springframework.org/schema/aop/spring-aop-4.3.xsd
+		http://www.springframework.org/schema/task http://www.springframework.org/schema/task/spring-task-4.3.xsd
+		http://www.springframework.org/schema/util http://www.springframework.org/schema/util/spring-util-4.3.xsd">
+
+	<context:component-scan base-package="com.cvo.web" use-default-filters="false">
+		<context:include-filter type="annotation" expression="org.springframework.stereotype.Controller" />
+		<context:include-filter type="annotation" expression="org.springframework.web.bind.annotation.ControllerAdvice" />
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Service" />
+		<context:exclude-filter type="annotation" expression="org.springframework.stereotype.Repository" />
+	</context:component-scan>
+
+<!-- 	<mvc:interceptors> -->
+<!-- 		<mvc:interceptor> -->
+<!-- 			<mvc:mapping path="/admin/**" /> -->
+<!-- 			<beans:bean class="com.cvo.web.common.interceptors.AdminInterceptor" /> -->
+<!-- 		</mvc:interceptor> -->
+<!-- 		<mvc:interceptor> -->
+<!-- 			<mvc:mapping path="/api/*" /> -->
+<!-- 			<beans:bean class="com.cvo.web.common.interceptors.ApiInterceptor" /> -->
+<!-- 		</mvc:interceptor> -->
+<!-- 		<mvc:interceptor> -->
+<!-- 			<mvc:mapping path="/ee/*" /> -->
+<!-- 			<beans:bean class="com.cvo.web.common.interceptors.EeInterceptor" /> -->
+<!-- 		</mvc:interceptor> -->
+<!-- 	</mvc:interceptors> -->
+
+	<mvc:interceptors>
+<!-- 		<mvc:interceptor> -->
+<!-- 			<mvc:mapping path="/**/*.do" /> -->
+<!-- 			<mvc:mapping path="/**/*.json" /> -->
+<!-- 			<mvc:mapping path="/**/*.xml" /> -->
+<!-- 			<bean class="com.cvo.web.common.interceptors.AdminInterceptor" /> -->
+<!-- 		</mvc:interceptor> -->
+		<mvc:interceptor>
+			<mvc:mapping path="/**" />
+			<mvc:exclude-mapping path="/common/**" />
+			<mvc:exclude-mapping path="/exam/**" />
+			<mvc:exclude-mapping path="/cmn/**" />
+			<mvc:exclude-mapping path="/main/**" />
+			<mvc:exclude-mapping path="/mobile/mmain/**" />
+			<bean class="com.cvo.web.common.interceptors.DefaultInterceptor" />
+		</mvc:interceptor>
+<!-- 		<mvc:interceptor> -->
+<!-- 			<mvc:mapping path="/**" /> -->
+<!-- 			<mvc:exclude-mapping path="/common/error/*" /> -->
+<!-- 			<bean class="com.cvo.web.common.interceptors.RequestInterceptor" /> -->
+<!-- 		</mvc:interceptor> -->
+	</mvc:interceptors>
+
+<!-- 	<mvc:resources mapping="/html/**" location="/html/"/> -->
+
+<!-- 	<mvc:view-controller path="/uncaughtException.do" view-name="common/error"/> -->
+<!-- 	<mvc:view-controller path="/resourceNotFound.do" view-name="common/error404"/> -->
+<!-- 	<mvc:default-servlet-handler /> -->
+
+
+<!-- 	<bean id="handlerMapping" class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping"> -->
+<!-- 		<property name="order" value="0"/> -->
+<!-- 		<property name="alwaysUseFullPath" value="true"/> -->
+<!-- 		<property name="interceptors"> -->
+<!-- 			<bean class="com.cvo.web.common.spring.CustomHandlerInterceptorAdapter"> -->
+<!-- 				<property name="fwkJsonView" ref="fwkJsonView" /> -->
+<!-- 				<property name="apiJsonView" ref="apiJsonView" /> -->
+<!-- 				<property name="fwkJsonExtension" value="jsonf" /> -->
+<!-- 				<property name="apiJsonExtension" value="json" /> -->
+<!-- 				<property name="apiXmlView" ref="apiXmlView" /> -->
+<!-- 				<property name="xmlExtension" value="xml" /> -->
+<!-- 				<property name="apiCsvView" ref="apiCsvView" /> -->
+<!-- 				<property name="csvExtension" value="csv" /> -->
+<!-- 			</bean> -->
+<!-- 		</property> -->
+<!-- 	</bean> -->
+	<bean id="handlerMapping" class="org.springframework.web.servlet.mvc.method.annotation.RequestMappingHandlerMapping">
+		<property name="order" value="0" />
+		<property name="alwaysUseFullPath" value="true" />
+	</bean>
+
+
+<!-- 	<bean id="handlerAdapter" class="com.cvo.web.common.spring.CustomRequestMappingHandlerAdapter"> -->
+<!-- 		<property name="order" value="0" /> -->
+<!-- 		<property name="preCustomArgumentResolvers"> -->
+<!-- 			<list> -->
+<!-- 				<bean class="com.cvo.web.common.spring.BoxHandlerMethodArgumentResolver" /> -->
+<!-- 			</list> -->
+<!-- 		</property> -->
+<!-- 	</bean> -->
+	<bean id="handlerAdapter" class="com.cvo.web.common.spring.CustomRequestMappingHandlerAdapter">
+		<property name="order" value="0" />
+		<property name="preCustomArgumentResolvers">
+			<list>
+				<bean class="com.cvo.web.common.spring.BoxHandlerMethodArgumentResolver" />
+			</list>
+		</property>
+		<property name="preCustomReturnValueHandlers">
+			<list>
+				<bean class="com.cvo.web.common.spring.CustomHandlerMethodReturnValueHandler">
+					<property name="jsonView" ref="jsonView" />
+					<property name="xmlView" ref="xmlView" />
+					<property name="excelView" ref="excelView" />
+					<property name="fileView" ref="fileView" />
+				</bean>
+			</list>
+		</property>
+	</bean>
+
+	<bean id="jsonView" class="com.cvo.web.common.spring.ApiJsonView">
+		<property name="objectMapper" ref="objectMapper" />
+	</bean>
+	<bean id="xmlSerializer" class="net.sf.json.xml.XMLSerializer" />
+	<bean id="xmlView" class="com.cvo.web.common.spring.ApiXmlView">
+		<property name="xmlSerializer" ref="xmlSerializer" />
+	</bean>
+	<bean id="excelView" class="com.cvo.web.common.spring.ExcelView" />
+	<bean id="oldExcelView" class="com.cvo.web.common.spring.OldExcelView" />
+	<bean id="fileView" class="com.cvo.web.common.spring.FileView" />
+
+	<bean class="org.springframework.web.servlet.view.BeanNameViewResolver">
+		<property name="order" value="0"/>
+	</bean>
+
+<!-- 	<bean class="org.springframework.web.servlet.view.DefaultRequestToViewNameTranslator" /> -->
+<!-- 	<bean id="viewResolver" class="org.springframework.web.servlet.view.InternalResourceViewResolver"> -->
+<!-- 		<property name="order" value="1"/> -->
+<!-- 		<property name="viewClass" value="org.springframework.web.servlet.view.JstlView" /> -->
+<!-- 		<property name="contentType" value="text/html; charset=UTF-8" /> -->
+<!-- 		<property name="prefix" value="/WEB-INF/jsp/" /> -->
+<!-- 		<property name="suffix" value=".jsp" /> -->
+<!-- 	</bean> -->
+
+<!-- 	<bean id="objectMapper" class="com.fasterxml.jackson.databind.ObjectMapper" primary="true" /> -->
+<!-- 	<bean class="org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean"> -->
+<!-- 		<property name="objectMapper" ref="objectMapper" /> -->
+<!-- 		<property name="featuresToDisable"> -->
+<!-- 			<array> -->
+<!-- 				<util:constant static-field="com.fasterxml.jackson.databind.SerializationFeature.WRITE_NULL_MAP_VALUES" /> -->
+<!-- 			</array> -->
+<!-- 		</property> -->
+<!-- 	</bean> -->
+<!-- 	<bean id="objectMapperFormat" class="com.fasterxml.jackson.databind.ObjectMapper" /> -->
+<!-- 	<bean class="org.springframework.http.converter.json.Jackson2ObjectMapperFactoryBean"> -->
+<!-- 		<property name="objectMapper" ref="objectMapperFormat" /> -->
+<!-- 		<property name="featuresToEnable"> -->
+<!-- 			<array> -->
+<!-- 				<util:constant static-field="com.fasterxml.jackson.databind.SerializationFeature.INDENT_OUTPUT" /> -->
+<!-- 			</array> -->
+<!-- 		</property> -->
+<!-- 	</bean> -->
+<!-- 	<bean id="customExceptionMapping" class="com.cvo.web.common.spring.CustomExceptionResolver"> -->
+<!-- 		<property name="order" value="0" /> -->
+<!-- 		<property name="fwkJsonView" ref="fwkJsonView" /> -->
+<!-- 		<property name="apiJsonView" ref="apiJsonView" /> -->
+<!-- 		<property name="fwkJsonExtension" value="jsonf" /> -->
+<!-- 		<property name="apiJsonExtension" value="json" /> -->
+<!-- 		<property name="apiXmlView" ref="apiXmlView" /> -->
+<!-- 		<property name="xmlExtension" value="xml" /> -->
+<!-- 		<property name="apiCsvView" ref="apiCsvView" /> -->
+<!-- 		<property name="csvExtension" value="csv" /> -->
+<!-- 	</bean> -->
+<!-- 	<bean id="exceptionMapping" class="org.springframework.web.servlet.handler.SimpleMappingExceptionResolver"> -->
+<!-- 		<property name="order" value="2" /> -->
+<!-- 		<property name="exceptionAttribute" value="exception" /> -->
+<!-- 		<property name="defaultErrorView" value="common/error" /> -->
+<!-- 	</bean> -->
+
+
+
+<!-- 	<bean class="org.springframework.web.servlet.view.tiles3.TilesConfigurer"> -->
+<!-- 		<property name="definitions"> -->
+<!-- 			<list> -->
+<!-- 				<value>classpath:config/tiles/tiles-defs.xml</value> -->
+<!-- 			</list> -->
+<!-- 		</property> -->
+<!-- 	</bean> -->
+	<bean class="org.springframework.web.servlet.view.tiles3.TilesViewResolver" />
+
+	<bean id="tilesConfigurer" class="org.springframework.web.servlet.view.tiles3.TilesConfigurer">
+		<property name="definitions">
+			<list>
+				<value>classpath:config/tiles/tiles-defs.xml</value>
+			</list>
+		</property>
+	</bean>
+	<bean id="tilesViewResolver" class="org.springframework.web.servlet.view.UrlBasedViewResolver">
+		<property name="order" value="1"/>
+		<property name="viewClass" value="org.springframework.web.servlet.view.tiles3.TilesView" />
+	</bean>
+
+<!-- 	<bean class="org.springframework.web.servlet.view.UrlBasedViewResolver"> -->
+<!-- 		<property name="order" value="2" /> -->
+<!-- 		<property name="viewClass" value="org.springframework.web.servlet.view.JstlView" /> -->
+<!-- 		<property name="prefix" value="/WEB-INF/jsp/" /> -->
+<!-- 		<property name="suffix" value=".jsp" /> -->
+<!-- 	</bean> -->
+
+	<bean id="multipartResolver" class="org.springframework.web.multipart.commons.CommonsMultipartResolver">
+		<property name="maxUploadSize" value="11000000" />
+		<property name="maxInMemorySize" value="100000000" />
+	</bean>
+
+	<bean class="org.springframework.web.servlet.mvc.method.annotation.ExceptionHandlerExceptionResolver">
+		<property name="order" value="0" />
+	</bean>
+
+
+	<beans:import resource="db-transaction.xml"/>
+	<aop:aspectj-autoproxy />
+	<bean id="taskExecutor" class="org.springframework.scheduling.concurrent.ThreadPoolTaskExecutor">
+		<property name="corePoolSize" value="5" />
+		<property name="maxPoolSize" value="100" />
+		<property name="queueCapacity" value="1000" />
+	</bean>
+	<task:annotation-driven executor="taskExecutor"/>
+
+</beans:beans>

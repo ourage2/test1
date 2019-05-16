@@ -1,0 +1,323 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="cmn">
+
+	<!-- 페이징 쿼리 시작 -->
+	<sql id="pageStr">
+		<if test='paginate != null and paginate != ""'><if test='paginate.currPage &gt; 0'>SELECT T.* FROM ( </if></if>
+	</sql>
+	<!-- 페이징 쿼리 종료 -->
+	<sql id="pageEnd">
+		<if test='paginate != null and paginate != ""'><if test='paginate.currPage &gt; 0'>) T WHERE T.RNUM BETWEEN #{paginate.startNum} AND #{paginate.endNum}</if></if>
+	</sql>
+
+	<!-- 코드 전체 목록 -->
+	<select id="cdAllList" parameterType="map" resultType="box">
+		WITH TEMP_TB_CD AS /*NO_LOG*/
+			(
+			SELECT
+					  '_ROOT_' AS GRP_CD
+					, '최상위' AS GRP_NM
+					, A.GRP_CD AS CD
+					, 'Y' AS USE_YN
+					, '사용' AS USE_YN_NM
+					, A.GRP_NM AS CD_NM
+					, A.APL_STR_DD
+					, A.APL_END_DD
+					, A.GRP_DESC AS CD_DESC
+					, '' AS ETC1
+					, '' AS ETC2
+					, '' AS ETC3
+					, 0 AS SEQ
+			FROM TB_GRP_CD A
+			UNION ALL
+			SELECT
+					  A.GRP_CD
+					, (SELECT GRP_NM FROM TB_GRP_CD WHERE GRP_CD = A.GRP_CD) AS GRP_NM
+					, A.CD
+					, A.USE_YN
+					, CASE A.USE_YN WHEN 'Y' THEN '사용' WHEN 'N' THEN '미사용' END AS USE_YN_NM
+					, A.CD_NM
+					, A.APL_STR_DD
+					, A.APL_END_DD
+					, A.CD_DESC
+					, A.ETC1
+					, A.ETC2
+					, A.ETC3
+					, A.SEQ
+			FROM TB_CD A
+			)
+		SELECT O.*
+		FROM TEMP_TB_CD O
+		ORDER BY O.GRP_CD, O.SEQ, O.CD_NM
+
+<!-- 		SELECT /*NO_LOG*/ -->
+<!-- 			  A.GRP_CD -->
+<!-- 				, (SELECT GRP_NM FROM TB_GRP_CD WHERE GRP_CD = A.GRP_CD) AS GRP_NM -->
+<!-- 			, A.CD -->
+<!-- 			, A.USE_YN -->
+<!-- 			, CASE A.USE_YN WHEN 'Y' THEN '사용' WHEN 'N' THEN '미사용' END AS USE_YN_NM -->
+<!-- 			, A.CD_NM -->
+<!-- 			, A.APL_STR_DD -->
+<!-- 			, A.APL_END_DD -->
+<!-- 			, A.CD_DESC -->
+<!-- 			, A.ETC1 -->
+<!-- 			, A.ETC2 -->
+<!-- 			, A.ETC3 -->
+<!-- 			, A.SEQ -->
+<!-- 		FROM TB_CD A -->
+<!-- 		ORDER BY A.GRP_CD ASC, A.SEQ ASC, A.CD_NM ASC -->
+	</select>
+
+	<!-- 전체메시지 목록 -->
+	<select id="msgAllList" parameterType="map" resultType="box">
+		SELECT /*NO_LOG*/
+			  A.MSG_ID
+			, A.MSG_TYPE
+			, CASE A.MSG_TYPE WHEN 'I' THEN '정보' WHEN 'W' THEN '경고' WHEN 'E' THEN '업무오류' WHEN 'F' THEN '시스템에러' WHEN 'S' THEN '성공' END AS MSG_TYPE_NM
+			, A.MSG_NM
+			, A.MSG_DESC
+		FROM TB_MSG A
+	</select>
+
+	<!-- 센터 목록 -->
+	<select id="centerList" parameterType="map" resultType="box">
+		SELECT /*NO_LOG*/
+			  A.CENTER_CD AS CD
+			, A.CENTER_NM AS NM
+			, A.CVO_ZIP
+			, A.CVO_SI
+			, A.CVO_ADDR
+			, A.XPOS
+			, A.YPOS
+		FROM TB_CENTER A
+		WHERE A.USE_YN = 'Y'
+		ORDER BY A.CENTER_NM ASC
+	</select>
+
+	<!-- 첨부파일 목록 -->
+	<select id="fileList" parameterType="map" resultType="box">
+		SELECT
+			  A.FILE_SEQ
+			, A.INSERT_DT
+			, A.INSERT_ID
+			, A.FILE_NM
+			, A.FILE_EXT
+			, A.FILE_TYPE
+			, A.FILE_SIZE
+			, A.FILE_KIND
+			, A.FILE_DIV
+			, A.FILE_KEY
+			, A.SAVE_FILE_NM
+			, A.SAVE_FILE_PATH
+			, A.DEL_YN
+			, A.TEMP_YN
+		FROM TB_FILE A
+		WHERE A.FILE_DIV = #{fileDiv}
+		AND A.FILE_KEY = #{fileKey}
+		<if test='tempYn != null and tempYn != ""'>
+			AND A.TEMP_YN = #{tempYn}
+		</if>
+		<if test='delYn != null and delYn != ""'>
+			AND A.DEL_YN = #{delYn}
+		</if>
+		ORDER BY A.FILE_SEQ ASC
+	</select>
+
+	<!-- 첨부파일 PK조회 -->
+	<select id="fileView" parameterType="map" resultType="box">
+		SELECT
+			  A.FILE_SEQ
+			, A.INSERT_DT
+			, A.INSERT_ID
+			, A.FILE_NM
+			, A.FILE_EXT
+			, A.FILE_TYPE
+			, A.FILE_SIZE
+			, A.FILE_KIND
+			, A.FILE_DIV
+			, A.FILE_KEY
+			, A.SAVE_FILE_NM
+			, A.SAVE_FILE_PATH
+			, A.DEL_YN
+			, A.TEMP_YN
+		FROM TB_FILE A
+		WHERE A.FILE_SEQ = #{fileSeq}
+<!-- 		<if test='tempYn != null and tempYn != ""'> -->
+<!-- 			AND A.TEMP_YN = #{tempYn} -->
+<!-- 		</if> -->
+		<if test='delYn != null and delYn != ""'>
+			AND A.DEL_YN = #{delYn}
+		</if>
+	</select>
+
+	<!-- 대용량엑셀파일 PK조회 -->
+	<select id="csvView" parameterType="map" resultType="box">
+		SELECT
+			  A.CSV_SEQ
+			, A.INSERT_DT
+			, A.STR_DATE
+			, A.END_DATE
+			, A.CENTER_CD
+			, (SELECT CENTER_NM FROM TB_CENTER WHERE CENTER_CD = A.CENTER_CD) AS CENTER_NM
+			, A.FILE_NM
+			, A.FILE_SIZE
+			, A.CNT
+			, A.SAVE_FILE_NM
+			, A.SAVE_FILE_PATH
+		FROM TB_CSV_FILE A
+		WHERE A.CSV_SEQ = #{csvSeq}
+	</select>
+
+	<!-- 첨부파일 등록-->
+	<insert id="fileInsert" parameterType="map">
+		<selectKey resultType="String" keyProperty="fileSeq" order="AFTER">
+<!-- 			SELECT SCOPE_IDENTITY() AS FILE_SEQ -->
+			SELECT IDENT_CURRENT('TB_FILE') AS FILE_SEQ
+		</selectKey>
+
+		INSERT INTO TB_FILE ( /* 첨부파일 */
+			  INSERT_ID
+<!-- 			, FILE_SEQ -->
+			, FILE_NM
+			, FILE_EXT
+			, FILE_TYPE
+			, FILE_SIZE
+			, FILE_KIND
+			, FILE_DIV
+			, FILE_KEY
+			, SAVE_FILE_NM
+			, SAVE_FILE_PATH
+			, DEL_YN
+			, TEMP_YN
+		) VALUES (
+			  #{sBox.userId}
+<!-- 			, #{fileSeq} -->
+			, #{fileNm}
+			, #{fileExt}
+			, #{fileType}
+			, #{fileSize}
+			, #{fileKind}
+			, #{fileDiv}
+			, #{fileKey}
+			, #{saveFileNm}
+			, #{saveFilePath}
+			, 'N'
+			, CASE #{fileKind} WHEN 'I' THEN 'N' ELSE 'Y' END
+		)
+	</insert>
+
+	<!-- 첨부파일 정상상태로 변경 -->
+	<update id="fileStatUpdate" parameterType="map">
+		UPDATE TB_FILE SET /* 일련번호 */
+			  UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+			, TEMP_YN = 'N'
+		WHERE FILE_SEQ = #{fileSeq}
+	</update>
+
+	<!-- 첨부파일 파일명 변경 -->
+	<update id="fileNmUpdate" parameterType="map">
+		UPDATE TB_FILE SET /* 일련번호 */
+			  UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+			, FILE_NM = #{fileSeq}
+		WHERE FILE_SEQ = #{fileSeq}
+	</update>
+
+	<!-- 첨부파일 상태별 삭제-->
+	<update id="fileStatDelete" parameterType="map">
+		DELETE FROM TB_FILE
+		WHERE FILE_DIV = #{fileDiv}
+		AND FILE_KEY = #{fileKey}
+		<if test='tempYn != null and tempYn != ""'>
+			AND TEMP_YN = #{tempYn}
+		</if>
+	</update>
+
+	<!-- 첨부파일 삭제-->
+	<update id="fileDelete" parameterType="map">
+		DELETE FROM TB_FILE
+		<if test='fileSeq != null and fileSeq != ""'>
+			WHERE FILE_SEQ = #{fileSeq}
+		</if>
+		<if test='fileSeq == null or fileSeq == ""'>
+			WHERE FILE_DIV = #{fileDiv}
+			AND FILE_KEY = #{fileKey}
+		</if>
+	</update>
+
+	<!-- 시퀀스 조회 -->
+	<select id="seqView" parameterType="map" resultType="box">
+		SELECT
+<!-- 			  A.SEQ -->
+<!-- 			, A.TABLE_NM -->
+<!-- 			, A.COLUMN_NM -->
+			  A.PREFIX
+			, A.NOW_SEQ
+			, ISNULL(A.PREFIX, '') + A.NOW_SEQ AS SEQ
+		FROM TB_SEQ A
+		WHERE A.TABLE_NM = #{tableNm}
+		AND A.COLUMN_NM = #{columnNm}
+	</select>
+
+	<!-- 시퀀스 증가 -->
+	<update id="seqUpdate" parameterType="map">
+		UPDATE TB_SEQ SET /* 일련번호 */
+			  UPDATE_DT = GETDATE()
+			, UPDATE_ID = #{sBox.userId}
+			, NOW_SEQ = NOW_SEQ + 1
+		WHERE TABLE_NM = #{tableNm}
+		AND COLUMN_NM = #{columnNm}
+	</update>
+
+	<!-- 코드 트리 목록 -->
+	<select id="cdTreeList" parameterType="map" resultType="box">
+		WITH TEMP_TB_CD AS /*NO_LOG*/
+			(
+			SELECT
+					  '_ROOT_' AS GRP_CD
+					, '최상위' AS GRP_NM
+					, A.GRP_CD AS CD
+					, A.GRP_CD AS TREE_KEY
+					, 'Y' AS USE_YN
+					, '사용' AS USE_YN_NM
+					, A.GRP_NM + ' (' + (SELECT CONVERT(VARCHAR(10), COUNT(*)) AS CNT FROM TB_CD WHERE GRP_CD = A.GRP_CD) + ')' AS CD_NM
+					, A.APL_STR_DD
+					, A.APL_END_DD
+					, A.GRP_DESC AS CD_DESC
+					, '' AS ETC1
+					, '' AS ETC2
+					, '' AS ETC3
+					, 0 AS SEQ
+					, 0 AS LV
+					, 'false' AS LEAF
+					, 'true' AS EX
+			FROM TB_GRP_CD A
+			UNION ALL
+			SELECT
+					  A.GRP_CD
+					, (SELECT GRP_NM FROM TB_GRP_CD WHERE GRP_CD = A.GRP_CD) AS GRP_NM
+					, A.CD
+					, A.GRP_CD + '_' + A.CD AS TREE_KEY
+					, A.USE_YN
+					, CASE A.USE_YN WHEN 'Y' THEN '사용' WHEN 'N' THEN '미사용' END AS USE_YN_NM
+					, A.CD_NM
+					, A.APL_STR_DD
+					, A.APL_END_DD
+					, A.CD_DESC
+					, A.ETC1
+					, A.ETC2
+					, A.ETC3
+					, A.SEQ
+					, 1 AS LV
+					, 'true' AS LEAF
+					, 'false' AS EX
+			FROM TB_CD A
+			)
+		SELECT O.*
+		FROM TEMP_TB_CD O
+		ORDER BY CASE O.LV WHEN 0 THEN O.CD WHEN 1 THEN O.GRP_CD END, O.SEQ
+	</select>
+</mapper>
+

@@ -1,0 +1,43 @@
+@charset "utf-8";
+
+/* Positioning
+================================== */
+/* float-clear IE7을 위한 Hack */
+/* *:first-child+html .grid-pnl,
+*:first-child+html #wrap > #wrap-south,
+*:first-child+html #wrap > .x-separate-line-h,
+*:first-child+html .empty-pnl,
+*:first-child+html dl,
+*:first-child+html ul,
+*:first-child+html span.buttonset, 
+*:first-child+html .colgroup-wrap,
+*:first-child+html .title, 
+*:first-child+html .caption-pnl,
+*:first-child+html .tab-header-wrap,
+*:first-child+html .tab-header ul,
+*:first-child+html #header,
+*:first-child+html #content,
+*:first-child+html #footer { min-height: 1px; }
+*:first-child+html .grid-header-pnl th {padding-left:0px !important; padding-right:0px !important;}
+*:first-child+html .grid-body-pnl td {padding-left:0px !important;  padding-right:0px !important;}
+*:first-child+html .grid-total-pnl td {padding-left:0px !important;  padding-right:0px !important;}
+*:first-child+html dl,
+*:first-child+html td span,
+*:first-child+html .guidance-message-pnl { position : static !important; } */
+
+/* ie8 호환성보기에서 caption-pnl margin 정보가 적용되지 않음 */
+/* *:first-child+html .caption-pnl { border: none 0; margin: 0; padding: 10px 6px 0 6px;}
+*:first-child+html .caption-pnl:first-child { padding-top: 5px;} */
+
+/* ie9 state-disabled */
+ :root footer .buttonset button.state-disabled{
+    opacity:0.6\0/IE9;
+} 
+ :root footer .buttonset button.state-disabled:hover{
+    opacity:0.6\0/IE9;
+}
+
+/* attr로 hidden일 경우 ie9와 10에서 적용되지 않는 현상 적용 20161018(kts)*/
+:root input[hidden], :root button[hidden], :root span[hidden] {
+	display:none\0/IE9;
+}

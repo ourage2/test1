@@ -1,0 +1,145 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE mapper PUBLIC "-//mybatis.org//DTD Mapper 3.0//EN" "http://mybatis.org/dtd/mybatis-3-mapper.dtd">
+<mapper namespace="exam.sample">
+
+	<sql id="menuListWhere">
+		<where>
+			<if test="srchUseYn not in {null, ''}">
+				AND USE_YN = #{srchUseYn}
+			</if>
+			<if test="srchMenuNm not in {null, ''}">
+				AND MENU_NM LIKE '%'||#{srchMenuNm}||'%'
+			</if>
+			<if test="srchMenuUrl not in {null, ''}">
+				AND MENU_URL LIKE '%'||#{srchMenuUrl}||'%'
+			</if>
+			<if test="srchStartDt not in {null, ''}">
+				AND SYS_REG_DTM >= TO_DATE(#{srchStartDt}, 'YYYY-MM-DD')
+			</if>
+			<if test="srchEndDt not in {null, ''}">
+				AND SYS_REG_DTM &lt; TO_DATE(#{srchEndDt}, 'YYYY-MM-DD')+1
+			</if>
+		</where>
+	</sql>
+
+	<!-- 메뉴목록건수 -->
+	<select id="menuListCnt" parameterType="map" resultType="int">
+		SELECT COUNT(*) AS CNT
+		  FROM TB_OM_MENU
+		<include refid="menuListWhere"/>
+	</select>
+
+	<!-- 메뉴목록 -->
+	<select id="menuList" parameterType="map" resultType="box">
+		SELECT ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) RNUM
+			 , MENU_ID
+			 , MENU_NM
+			 , MENU_DESC
+			 , MENU_ORD
+			 , UPPER_MENU_ID
+			 , MENU_URL
+			 , MENU_TYP_CD
+			 , USE_YN
+			 , SYS_REG_DTM
+			 , SYS_REG_DTM SYS_REG_DTM2
+		  FROM TB_OM_MENU
+		 <include refid="menuListWhere"/>
+ 		 LIMIT #{paginate.startNum}, #{paginate.recordSize}
+	</select>
+
+	<!-- 메뉴상세 -->
+	<select id="menuDetail" parameterType="map" resultType="box">
+		SELECT MENU_ID
+			 , MENU_NM
+			 , MENU_DESC
+			 , MENU_ORD
+			 , UPPER_MENU_ID
+			 , MENU_URL
+			 , MENU_TYP_CD
+			 , USE_YN
+			 , SYS_REG_DTM
+		  FROM TB_OM_MENU
+		 WHERE MENU_ID = #{menuId}
+	</select>
+
+	<!-- 메뉴별권한목록 -->
+	<select id="authMenuList" parameterType="map" resultType="box">
+		SELECT ROW_NUMBER() OVER(ORDER BY ${sortColumn} ${sortOrder}) RNUM
+			 , GROUP_ID
+			 , MENU_ID
+			 , FIRST_MENU_YN
+			 , SYS_REG_DTM
+			 , SYS_REG_ID
+		  FROM TB_OM_GROUP_MENU
+		<if test='!menuId.equals("M010100")'>
+			WHERE MENU_ID = #{menuId}
+		</if>
+	</select>
+
+	<!-- 코드 전체 목록 -->
+	<select id="codeAllList" parameterType="map" resultType="box">
+		SELECT GRP_CD
+			 , CD
+			 , CD_NM
+			 , CD_DESC
+			 , SORT_NO
+			 , USE_YN
+			 , VALUE_1
+			 , VALUE_2
+			 , VALUE_3
+			 , SYS_REG_ID
+			 , SYS_REG_DTM
+			 , SYS_UPD_ID
+			 , SYS_UPD_DTM
+		  FROM OMBSONM.TB_COM_CD
+		 START WITH GRP_CD = '_ROOT_'
+		CONNECT BY PRIOR CD = GRP_CD AND LEVEL &lt;= 2
+		ORDER SIBLINGS BY SORT_NO
+	</select>
+
+	<!-- api 로그 목록 -->
+	<select id="apiLogList" parameterType="map" resultType="box">
+		SELECT API_LOG_NO
+			 ,PARENT_API_LOG_NO
+			 ,MARKET_ID
+			 ,TRANS_ID
+			 ,VERSION
+			 ,IO_TYPE
+			 ,CALL_API_NM
+			 ,CALL_URL
+			 ,REQ_SYSTEM
+			 ,REQ_SERVER
+			 ,REQ_PARAM
+			 ,REQ_HEADER
+			 ,REQ_DATA
+			 ,REQ_IP
+			 ,REQ_DATE
+			 ,RES_SYSTEM
+			 ,RES_SERVER
+			 ,RES_HEADER
+			 ,RES_DATA
+			 ,RES_CD RES_MSG
+			 ,RES_DATE
+			 ,ELAPSE_TIME
+			 ,SUCC_YN
+			 ,ERROR_DETAIL
+			 ,COMMERCIAL_YN
+			 ,ASYNC_YN
+		  FROM TB_API_LOG
+	</select>
+
+
+	<!-- md5 암호화 -->
+	<select id="md5" parameterType="map" resultType="string">
+		SELECT SUBSTRING(MASTER.DBO.FN_VARBINTOHEXSTR(HASHBYTES('MD5', CONVERT(VARCHAR(MAX), #{pwd}))), 3, 32) AS ENC_PWD
+	</select>
+
+
+	<!-- 프로시져 콜 테스트 -->
+	<select id="callFn" statementType="CALLABLE" parameterType="map" resultType="box">
+		{CALL GET_CD (
+			  #{pCdNm}
+			, #{pGrpCd}
+		)}
+	</select>
+</mapper>
