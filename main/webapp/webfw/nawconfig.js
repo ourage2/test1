@@ -1,7 +1,7 @@
 naw.config = {
 	/**** site name에 따른 naw widget 특성화 구현 처리 ****/
 	//site name define
-	siteName : "cvo",
+	siteName : "enp-em",
 
 	/**** 웹 어플리케이션 context path ****/
 	context		: _contextPath_,
